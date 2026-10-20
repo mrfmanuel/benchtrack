@@ -54,8 +54,8 @@ def test_wrong_method_uses_error_envelope(client):
     assert_error(client.delete("/api/customers"), 405, "method_not_allowed")
 
 
-def test_generated_docs_are_not_served(anon):
-    for path in ("/docs", "/redoc", "/openapi.json"):
+def test_fastapi_generated_docs_are_not_served(anon):
+    for path in ("/redoc", "/openapi.json"):
         assert anon.get(path).status_code == 404
 
 

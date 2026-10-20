@@ -11,6 +11,10 @@ from fastapi.routing import APIRoute, iter_route_contexts
 OPENAPI_PATH = Path(__file__).resolve().parents[3] / "openapi.yaml"
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options", "trace"}
 
+# Documentation routes are deliberately outside the contract: they serve the contract
+# itself (/api/openapi.yaml) and a Swagger UI page that renders it (/docs).
+DOC_ROUTES = {("GET", "/api/openapi.yaml"), ("GET", "/docs")}
+
 
 @cache
 def load_contract() -> dict[str, Any]:
@@ -36,7 +40,8 @@ def app_operations(app) -> dict[tuple[str, str], APIRoute]:
 
 def test_every_contract_operation_exists_in_the_app_and_vice_versa(app):
     contract = {(method, path) for method, path, _ in contract_operations()}
-    implemented = set(app_operations(app))
+    implemented = set(app_operations(app)) - DOC_ROUTES
+    assert set(app_operations(app)) >= DOC_ROUTES
     assert contract - implemented == set(), "in openapi.yaml but not implemented"
     assert implemented - contract == set(), "implemented but not in openapi.yaml"
 

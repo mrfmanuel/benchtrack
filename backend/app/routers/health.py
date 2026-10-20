@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
 
 from app.db import check_database
+from app.responses import UTF8JSONResponse as JSONResponse
 
 router = APIRouter(prefix="/api", tags=["Health"])
 

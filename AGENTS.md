@@ -32,7 +32,7 @@ Instructions for AI coding agents (and human contributors) working in this repos
 ## Golden rules
 
 1. **Contract first.** Any API change starts in `openapi.yaml`, then backend, then `frontend/src/api/`, then tests — in the same change.
-2. **Tests with every change.** Unit tests in `backend/tests/unit/`, integration tests in `backend/tests/integration/`, frontend tests next to the code (`*.test.ts(x)`). Don't mark work done while tests fail.
+2. **Tests with every change.** Backend tests live in three layers (see *Backend tests* below); frontend tests next to the code (`*.test.ts(x)`). Don't mark work done while tests fail.
 3. **Small steps, one commit per task**, message in imperative mood (`Add status transition validation`).
 4. **No secrets in the repo.** Use `.env` (git-ignored) and `.env.example`. Never print or commit `STAFF_TOKEN`, `DATABASE_URL` or deploy hooks.
 5. **Fictional data only** in seeds, tests and screenshots.
@@ -45,7 +45,18 @@ Instructions for AI coding agents (and human contributors) working in this repos
 - Business rules (transitions, tracking code generation, stale detection) live in `app/services/` and are unit-tested without HTTP or DB.
 - DB: SQLAlchemy 2.x, engine-agnostic models. `DATABASE_URL` defaults to SQLite (`sqlite:///./benchtrack.db`); PostgreSQL in Compose/production. Keep engine-specific code in `app/db.py`.
 - Auth: `Authorization: Bearer <STAFF_TOKEN>` dependency on all staff routes; compare with `secrets.compare_digest`.
-- Run: `uv run uvicorn app.main:app --reload` · Tests: `uv run pytest tests/unit` and `uv run pytest tests/integration` · Lint: `uv run ruff check .`
+- Run: `uv run uvicorn app.main:app --reload` · Lint: `uv run ruff check .` · Seed: `uv run python -m app.seed`
+- API docs: `GET /docs` (Swagger UI) renders the served contract `GET /api/openapi.yaml`; FastAPI's generated schema is disabled.
+
+### Backend tests
+
+| Layer | Folder | Scope | Run |
+|-------|--------|-------|-----|
+| Unit | `backend/tests/unit/` | Pure logic in `app/services/` and config — no HTTP, no DB. Fast. | `uv run pytest tests/unit` |
+| API | `backend/tests/api/` | In-process HTTP via `TestClient` + in-memory SQLite (`StaticPool`), settings overridden. Acceptance scenarios, error codes, auth, contract parity with `openapi.yaml`. | `uv run pytest tests/api` |
+| Integration | `backend/tests/integration/` | Real PostgreSQL with Alembic migrations (Step 3). | `uv run pytest tests/integration` |
+
+`uv run pytest` runs all layers.
 
 ## Frontend (`frontend/`)
 

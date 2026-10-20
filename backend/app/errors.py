@@ -5,9 +5,9 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.responses import UTF8JSONResponse as JSONResponse
 from app.services.tracking_codes import TrackingCodeGenerationError
 from app.services.transitions import InvalidTransitionError
 

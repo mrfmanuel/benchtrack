@@ -12,7 +12,8 @@ from app.config import Settings, get_settings
 from app.db import Base, create_db_engine, make_session_factory
 from app.errors import register_exception_handlers
 from app.logging_config import configure_logging
-from app.routers import customers, dashboard, health, public, tickets
+from app.responses import UTF8JSONResponse
+from app.routers import customers, dashboard, docs, health, public, tickets
 from app.services.rate_limit import SlidingWindowRateLimiter
 
 PUBLIC_RATE_LIMIT = 10
@@ -37,11 +38,13 @@ def create_app(
         yield
         engine.dispose()
 
-    # `openapi.yaml` is the contract; FastAPI's generated docs are not served.
+    # `openapi.yaml` is the contract: FastAPI's generated schema/docs are disabled and
+    # /docs renders openapi.yaml instead (see app/routers/docs.py).
     app = FastAPI(
         title="BenchTrack API",
         version="0.1.0",
         lifespan=lifespan,
+        default_response_class=UTF8JSONResponse,
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
@@ -54,7 +57,7 @@ def create_app(
     )
 
     register_exception_handlers(app)
-    for module in (health, customers, tickets, dashboard, public):
+    for module in (health, customers, tickets, dashboard, public, docs):
         app.include_router(module.router)
     return app
 
