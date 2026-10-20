@@ -1,0 +1,55 @@
+"""Application settings from environment variables (spec §5, §9.18, §9.27)."""
+
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import SecretStr, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+MIN_STAFF_TOKEN_LENGTH = 16
+
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+LogFormat = Literal["text", "json"]
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    staff_token: SecretStr
+    database_url: str = "sqlite:///./benchtrack.db"
+    log_level: LogLevel = "INFO"
+    log_format: LogFormat = "text"
+
+    @field_validator("staff_token", mode="before")
+    @classmethod
+    def _check_staff_token(cls, value: object) -> object:
+        raw = value.get_secret_value() if isinstance(value, SecretStr) else value
+        if isinstance(raw, str):
+            raw = raw.strip()
+            if len(raw) < MIN_STAFF_TOKEN_LENGTH:
+                raise ValueError(
+                    f"STAFF_TOKEN must be at least {MIN_STAFF_TOKEN_LENGTH} characters long."
+                )
+        return raw
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_database_url(cls, value: str) -> str:
+        # Hosting platforms often hand out postgres:// URLs; use the psycopg 3 driver.
+        for prefix in ("postgres://", "postgresql://"):
+            if value.startswith(prefix):
+                return "postgresql+psycopg://" + value.removeprefix(prefix)
+        return value
+
+    @field_validator("log_level", "log_format", mode="before")
+    @classmethod
+    def _normalize_case(cls, value: object, info) -> object:
+        if isinstance(value, str):
+            return value.upper() if info.field_name == "log_level" else value.lower()
+        return value
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Load settings once. Called at startup so a bad config fails fast."""
+    return Settings()
