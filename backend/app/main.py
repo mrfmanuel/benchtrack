@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from sqlalchemy import Engine
 
 from app.config import Settings, get_settings
-from app.db import Base, create_db_engine, make_session_factory
+from app.db import create_db_engine, make_session_factory
 from app.errors import register_exception_handlers
 from app.logging_config import configure_logging
 from app.responses import UTF8JSONResponse
@@ -30,8 +30,8 @@ def create_app(
     # Loading settings here makes a missing/short STAFF_TOKEN stop the server at startup.
     settings = settings or get_settings()
     configure_logging(settings.log_level, settings.log_format, stream=log_stream)
+    # The schema is managed by Alembic (`uv run alembic upgrade head`); never created here.
     engine = engine or create_db_engine(settings.database_url)
-    Base.metadata.create_all(engine)  # replaced by Alembic migrations in Step 3
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:

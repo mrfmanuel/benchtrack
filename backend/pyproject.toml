@@ -3,6 +3,7 @@ name = "benchtrack-backend"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.20.0",
     "email-validator>=2.3.0",
     "fastapi>=0.156.0",
     "psycopg[binary]>=3.3.6",
@@ -22,7 +23,10 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "--strict-markers"
+# Default run: unit + api. PostgreSQL tests run with `uv run pytest -m integration`
+# (a later -m on the command line overrides this one).
+addopts = "--strict-markers -m 'not integration'"
+markers = ["integration: needs PostgreSQL via TEST_DATABASE_URL (see docs/database.md)"]
 
 [tool.ruff]
 line-length = 100
@@ -30,6 +34,10 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "S"]
+
+[tool.ruff.lint.isort]
+# The local alembic/ folder would otherwise make the alembic package look first-party.
+known-third-party = ["alembic"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]  # asserts and fictional test tokens

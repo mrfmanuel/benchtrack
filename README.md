@@ -35,4 +35,5 @@ Copy `.env.example` to `.env` (never commit `.env`).
 - [`product-spec.md`](product-spec.md) — product scope and behavior (source of truth)
 - [`openapi.yaml`](openapi.yaml) — API contract
 - [`AGENTS.md`](AGENTS.md) — instructions for coding agents and contributors
+- [`docs/database.md`](docs/database.md) — database environments, migrations, seeding, ER diagram
 - [`docs/ai-workflow.md`](docs/ai-workflow.md) — AI-assisted development log

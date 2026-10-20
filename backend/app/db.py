@@ -5,14 +5,27 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Request
-from sqlalchemy import DateTime, Engine, create_engine, event, text
+from sqlalchemy import DateTime, Engine, MetaData, create_engine, event, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.types import TypeDecorator
 
+# Explicit constraint/index names, identical on SQLite and PostgreSQL, so migrations can
+# refer to them by name.
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+
+CONNECT_TIMEOUT_SECONDS = 5
+
 
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 def utcnow() -> datetime:
@@ -54,6 +67,8 @@ def create_db_engine(url: str, **kwargs: Any) -> Engine:
 
         return engine
     kwargs.setdefault("pool_pre_ping", True)
+    # Fail fast when the server is unreachable, so /api/health answers 503 instead of hanging.
+    kwargs.setdefault("connect_args", {"connect_timeout": CONNECT_TIMEOUT_SECONDS})
     return create_engine(url, **kwargs)
 
 

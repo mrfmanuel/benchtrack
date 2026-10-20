@@ -43,9 +43,11 @@ Instructions for AI coding agents (and human contributors) working in this repos
 - FastAPI, Python 3.12, managed with **uv** (`uv add`, `uv sync`, `uv run ...`; never `pip install`, never hand-edit `uv.lock`).
 - Layout: `app/main.py` (app factory), `app/config.py` (settings from env), `app/db.py` (engine/session), `app/models.py` (SQLAlchemy), `app/schemas.py` (Pydantic), `app/services/` (business logic, e.g. status transitions, tracking codes), `app/routers/` (thin HTTP layer).
 - Business rules (transitions, tracking code generation, stale detection) live in `app/services/` and are unit-tested without HTTP or DB.
-- DB: SQLAlchemy 2.x, engine-agnostic models. `DATABASE_URL` defaults to SQLite (`sqlite:///./benchtrack.db`); PostgreSQL in Compose/production. Keep engine-specific code in `app/db.py`.
+- DB: SQLAlchemy 2.x, engine-agnostic models. `DATABASE_URL` defaults to SQLite (`sqlite:///./benchtrack.db`); PostgreSQL in Compose/production. Keep engine-specific code in `app/db.py`. Details: [`docs/database.md`](docs/database.md).
+- Schema changes **only via Alembic** (`backend/alembic/`): change `app/models.py`, run `uv run alembic revision --autogenerate -m "..."`, review the file, then `uv run alembic upgrade head`. The app never calls `create_all` (only the API test fixture does). Never edit an applied migration.
 - Auth: `Authorization: Bearer <STAFF_TOKEN>` dependency on all staff routes; compare with `secrets.compare_digest`.
-- Run: `uv run uvicorn app.main:app --reload` · Lint: `uv run ruff check .` · Seed: `uv run python -m app.seed`
+- Run: `uv run alembic upgrade head` then `uv run uvicorn app.main:app --reload` · Lint: `uv run ruff check .` · Seed: `uv run python -m app.seed`
+- Local PostgreSQL: `docker compose up -d db --wait` (127.0.0.1:5433; use `127.0.0.1`, not `localhost`).
 - API docs: `GET /docs` (Swagger UI) renders the served contract `GET /api/openapi.yaml`; FastAPI's generated schema is disabled.
 
 ### Backend tests
@@ -54,9 +56,9 @@ Instructions for AI coding agents (and human contributors) working in this repos
 |-------|--------|-------|-----|
 | Unit | `backend/tests/unit/` | Pure logic in `app/services/` and config — no HTTP, no DB. Fast. | `uv run pytest tests/unit` |
 | API | `backend/tests/api/` | In-process HTTP via `TestClient` + in-memory SQLite (`StaticPool`), settings overridden. Acceptance scenarios, error codes, auth, contract parity with `openapi.yaml`. | `uv run pytest tests/api` |
-| Integration | `backend/tests/integration/` | Real PostgreSQL with Alembic migrations (Step 3). | `uv run pytest tests/integration` |
+| Integration | `backend/tests/integration/` | Compose PostgreSQL via `TEST_DATABASE_URL` (database name must end in `_test`; schema is wiped per test). Migrations up/down, no autogenerate drift, key HTTP workflows. Marker `integration`; skipped without PostgreSQL. | `uv run pytest -m integration` |
 
-`uv run pytest` runs all layers.
+`uv run pytest` runs unit + API tests (integration is deselected by default).
 
 ## Frontend (`frontend/`)
 

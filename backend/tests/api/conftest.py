@@ -12,7 +12,7 @@ from sqlalchemy import update
 from sqlalchemy.pool import StaticPool
 
 from app.config import Settings
-from app.db import create_db_engine, utcnow
+from app.db import Base, create_db_engine, utcnow
 from app.main import create_app
 from app.models import Ticket
 
@@ -52,6 +52,8 @@ def app(clock: FakeClock, log_stream: io.StringIO) -> Iterator[FastAPI]:
     )
     # One shared connection, so every session sees the same in-memory database.
     engine = create_db_engine("sqlite://", poolclass=StaticPool)
+    # Fast schema setup for in-memory tests; real databases use Alembic migrations.
+    Base.metadata.create_all(engine)
     yield create_app(settings, engine=engine, clock=clock, log_stream=log_stream)
     engine.dispose()
 

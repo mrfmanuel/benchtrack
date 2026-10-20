@@ -1,0 +1,27 @@
+# Local PostgreSQL for development and integration tests.
+# The app service is added in Step 5.
+#   docker compose up -d db --wait
+# Credentials come from .env (see .env.example); the defaults are for local use only.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-benchtrack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-benchtrack}
+      POSTGRES_DB: ${POSTGRES_DB:-benchtrack}
+    ports:
+      # Loopback only, and 5433 to avoid clashing with a locally installed PostgreSQL.
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata:

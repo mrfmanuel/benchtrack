@@ -9,11 +9,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
-from app.db import Base, create_db_engine, make_session_factory, utcnow
+from app.config import DatabaseSettings
+from app.db import create_db_engine, make_session_factory, utcnow
 from app.models import Customer, DeviceType, EventKind, Ticket, TicketEvent
 from app.services.transitions import TicketStatus, validate_transition
 
@@ -264,9 +264,10 @@ def seed(session: Session, now: datetime | None = None) -> tuple[int, int]:
 
 
 def main() -> None:
-    settings = get_settings()
-    engine = create_db_engine(settings.database_url)
-    Base.metadata.create_all(engine)
+    engine = create_db_engine(DatabaseSettings().database_url)
+    if not inspect(engine).has_table("tickets"):
+        engine.dispose()
+        raise SystemExit("Database schema missing. Run `uv run alembic upgrade head` first.")
     with make_session_factory(engine)() as session:
         customers, tickets = seed(session)
     engine.dispose()

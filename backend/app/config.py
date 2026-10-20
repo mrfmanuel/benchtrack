@@ -12,7 +12,17 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 LogFormat = Literal["text", "json"]
 
 
-class Settings(BaseSettings):
+def normalize_database_url(url: str) -> str:
+    """Hosting platforms often hand out postgres:// URLs; use the psycopg 3 driver."""
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url.removeprefix(prefix)
+    return url
+
+
+class DatabaseSettings(BaseSettings):
+    """Only what database tooling (Alembic, seed) needs — no STAFF_TOKEN required."""
+
     # Repo-root .env first, then backend/.env (later files win). Paths are relative to the cwd.
     # hide_input_in_errors: a rejected STAFF_TOKEN must never be echoed into startup logs.
     model_config = SettingsConfigDict(
@@ -22,8 +32,16 @@ class Settings(BaseSettings):
         hide_input_in_errors=True,
     )
 
-    staff_token: SecretStr
     database_url: str = "sqlite:///./benchtrack.db"
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_database_url(cls, value: str) -> str:
+        return normalize_database_url(value)
+
+
+class Settings(DatabaseSettings):
+    staff_token: SecretStr
     log_level: LogLevel = "INFO"
     log_format: LogFormat = "text"
 
@@ -38,15 +56,6 @@ class Settings(BaseSettings):
                     f"STAFF_TOKEN must be at least {MIN_STAFF_TOKEN_LENGTH} characters long."
                 )
         return raw
-
-    @field_validator("database_url")
-    @classmethod
-    def _normalize_database_url(cls, value: str) -> str:
-        # Hosting platforms often hand out postgres:// URLs; use the psycopg 3 driver.
-        for prefix in ("postgres://", "postgresql://"):
-            if value.startswith(prefix):
-                return "postgresql+psycopg://" + value.removeprefix(prefix)
-        return value
 
     @field_validator("log_level", "log_format", mode="before")
     @classmethod
