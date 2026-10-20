@@ -1,0 +1,1117 @@
+openapi: 3.1.0
+info:
+  title: BenchTrack API
+  version: 0.1.0
+  summary: Repair-ticket tracker for a single small computer-repair shop.
+  description: |
+    API contract for BenchTrack. Product behavior is defined in `product-spec.md`
+    (section 9 "Clarifications and decisions" wins over sections 1–8).
+
+    - All staff endpoints require `Authorization: Bearer <STAFF_TOKEN>`. A missing or
+      wrong token returns `401` (there is no `403`).
+    - `GET /api/health` and `GET /api/public/*` are unauthenticated.
+    - Every error response uses the `Error` envelope, except the health check, whose
+      `503` body is `{"status": "degraded", "database": "error"}` (spec 9.22).
+    - All timestamps are UTC, ISO 8601 with a `Z` suffix.
+    - Lists are paginated with `limit` (default 50, max 200) and `offset`, and return
+      `{ "items": [...], "total": n }`.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: /
+    description: Same origin (production) or Vite dev proxy to http://localhost:8000 (local)
+security:
+  - staffToken: []
+tags:
+  - name: Health
+    description: Liveness and database check for containers and the hosting platform.
+  - name: Customers
+    description: Shop customers (staff only).
+  - name: Tickets
+    description: Repair tickets, status workflow and timeline (staff only).
+  - name: Dashboard
+    description: Overview of open work (staff only).
+  - name: Public
+    description: Customer-facing tracking by code (no login, rate-limited).
+
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Health check
+      description: Runs `SELECT 1` against the database.
+      security: []
+      responses:
+        '200':
+          description: Service and database are healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              example:
+                status: ok
+                database: ok
+        '503':
+          description: Database check failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              example:
+                status: degraded
+                database: error
+
+  /api/customers:
+    get:
+      tags: [Customers]
+      operationId: listCustomers
+      summary: List customers
+      description: Sorted by `name` ascending. `q` matches name or phone (case-insensitive substring).
+      parameters:
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of customers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerList'
+              example:
+                items:
+                  - id: 1
+                    name: Ana Mora
+                    phone: '+50688001234'
+                    email: ana.mora@example.com
+                    created_at: '2026-10-01T15:04:05Z'
+                total: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    post:
+      tags: [Customers]
+      operationId: createCustomer
+      summary: Create a customer
+      description: The phone is normalized (spaces, dashes and parentheses removed) before validation and uniqueness checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreate'
+            example:
+              name: Ana Mora
+              phone: +506 8800-1234
+              email: ana.mora@example.com
+      responses:
+        '201':
+          description: Customer created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+              example:
+                id: 1
+                name: Ana Mora
+                phone: '+50688001234'
+                email: ana.mora@example.com
+                created_at: '2026-10-01T15:04:05Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/DuplicatePhone'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/customers/{customer_id}:
+    parameters:
+      - $ref: '#/components/parameters/CustomerId'
+    get:
+      tags: [Customers]
+      operationId: getCustomer
+      summary: Get a customer
+      responses:
+        '200':
+          description: The customer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Customers]
+      operationId: updateCustomer
+      summary: Update a customer
+      description: Partial update; only the fields sent are changed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerUpdate'
+            example:
+              email: ana.m@example.com
+      responses:
+        '200':
+          description: The updated customer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/DuplicatePhone'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/tickets:
+    get:
+      tags: [Tickets]
+      operationId: listTickets
+      summary: List tickets
+      description: |
+        Sorted by `created_at` descending. `q` matches tracking code, customer name,
+        brand or model (case-insensitive substring). Filters are combined with AND.
+      parameters:
+        - name: customer_id
+          in: query
+          required: false
+          description: Only tickets of this customer. An unknown ID returns an empty list.
+          schema:
+            type: integer
+            minimum: 1
+        - name: status
+          in: query
+          required: false
+          description: Only tickets with this status.
+          schema:
+            $ref: '#/components/schemas/TicketStatus'
+        - $ref: '#/components/parameters/Query'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of tickets.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketList'
+              example:
+                items:
+                  - id: 42
+                    customer_id: 1
+                    customer:
+                      id: 1
+                      name: Ana Mora
+                      phone: '+50688001234'
+                    device_type: laptop
+                    brand: Lenovo
+                    model: ThinkPad T14
+                    serial_number: PF-2X9QK1
+                    reported_issue: Does not turn on after a coffee spill.
+                    diagnosis: Liquid damage on the keyboard; motherboard OK.
+                    estimated_cost: 45000.00
+                    status: diagnosing
+                    tracking_code: BT-7K3QX
+                    created_at: '2026-10-01T15:10:00Z'
+                    updated_at: '2026-10-02T09:30:00Z'
+                total: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    post:
+      tags: [Tickets]
+      operationId: createTicket
+      summary: Create a ticket
+      description: |
+        Creates a ticket for an existing customer with status `received`, a generated
+        `tracking_code` and an initial status event (`from_status = null`,
+        `to_status = received`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketCreate'
+            example:
+              customer_id: 1
+              device_type: laptop
+              brand: Lenovo
+              model: ThinkPad T14
+              serial_number: PF-2X9QK1
+              reported_issue: Does not turn on after a coffee spill.
+      responses:
+        '201':
+          description: Ticket created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+              examples:
+                created:
+                  $ref: '#/components/examples/TicketReceived'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: |
+            Request failed validation, including a `customer_id` that does not match an
+            existing customer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                unknownCustomer:
+                  summary: Unknown customer
+                  value:
+                    error:
+                      code: validation_error
+                      message: Request validation failed.
+                      details:
+                        - field: customer_id
+                          message: Customer 99 does not exist.
+                invalidField:
+                  summary: Invalid field
+                  value:
+                    error:
+                      code: validation_error
+                      message: Request validation failed.
+                      details:
+                        - field: reported_issue
+                          message: Field required.
+        '500':
+          description: Could not generate a unique tracking code after 5 attempts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: tracking_code_generation_failed
+                  message: Could not generate a unique tracking code. Please retry.
+
+  /api/tickets/{ticket_id}:
+    parameters:
+      - $ref: '#/components/parameters/TicketId'
+    get:
+      tags: [Tickets]
+      operationId: getTicket
+      summary: Get a ticket
+      responses:
+        '200':
+          description: The ticket.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+              examples:
+                diagnosing:
+                  $ref: '#/components/examples/TicketDiagnosing'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Tickets]
+      operationId: updateTicket
+      summary: Update ticket details
+      description: |
+        Partial update of ticket details. `customer_id`, `status` and `tracking_code`
+        cannot be changed here (unknown fields → `422`; use the status endpoint for
+        status). Final tickets (`delivered`/`cancelled`) are read-only → `409`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TicketUpdate'
+            example:
+              diagnosis: Liquid damage on the keyboard; motherboard OK.
+              estimated_cost: 45000.00
+      responses:
+        '200':
+          description: The updated ticket.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/TicketFinal'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/tickets/{ticket_id}/status:
+    parameters:
+      - $ref: '#/components/parameters/TicketId'
+    post:
+      tags: [Tickets]
+      operationId: changeTicketStatus
+      summary: Change ticket status
+      description: |
+        Moves the ticket to `to_status` and records a `status` event. Allowed transitions:
+
+        - `received → diagnosing | cancelled`
+        - `diagnosing → waiting_parts | repairing | ready | cancelled`
+        - `waiting_parts → repairing | cancelled`
+        - `repairing → waiting_parts | ready | cancelled`
+        - `ready → delivered | repairing`
+        - `delivered`, `cancelled` are final.
+
+        Any other transition, including to the current status, returns `409 invalid_transition`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChange'
+            example:
+              to_status: waiting_parts
+              note: Ordered replacement keyboard, ETA 5 days.
+      responses:
+        '200':
+          description: The ticket with its new status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Transition not allowed from the current status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: invalid_transition
+                  message: Cannot change status from received to ready.
+                  details:
+                    from_status: received
+                    to_status: ready
+                    allowed: [diagnosing, cancelled]
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/tickets/{ticket_id}/notes:
+    parameters:
+      - $ref: '#/components/parameters/TicketId'
+    post:
+      tags: [Tickets]
+      operationId: addTicketNote
+      summary: Add a note
+      description: Adds a `note` event to the timeline without changing status. Allowed on final tickets too.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoteCreate'
+            example:
+              note: Customer called; will pick up on Friday.
+      responses:
+        '201':
+          description: Note event created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketEvent'
+              example:
+                id: 3
+                ticket_id: 42
+                kind: note
+                from_status: null
+                to_status: null
+                note: Customer called; will pick up on Friday.
+                created_at: '2026-10-03T16:20:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/tickets/{ticket_id}/events:
+    parameters:
+      - $ref: '#/components/parameters/TicketId'
+    get:
+      tags: [Tickets]
+      operationId: listTicketEvents
+      summary: Get ticket timeline
+      description: All events (status and note) of the ticket, sorted by `created_at` ascending. Not paginated.
+      responses:
+        '200':
+          description: The ticket timeline.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketEventList'
+              example:
+                items:
+                  - id: 1
+                    ticket_id: 42
+                    kind: status
+                    from_status: null
+                    to_status: received
+                    note: null
+                    created_at: '2026-10-01T15:10:00Z'
+                  - id: 2
+                    ticket_id: 42
+                    kind: status
+                    from_status: received
+                    to_status: diagnosing
+                    note: null
+                    created_at: '2026-10-02T09:30:00Z'
+                  - id: 3
+                    ticket_id: 42
+                    kind: note
+                    from_status: null
+                    to_status: null
+                    note: Customer called; will pick up on Friday.
+                    created_at: '2026-10-03T16:20:00Z'
+                total: 3
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/dashboard:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboard
+      summary: Dashboard overview
+      description: |
+        Ticket counts for all 7 statuses, and stale tickets: open (not `delivered`/`cancelled`)
+        with `updated_at` older than 7 × 24 h (strictly greater), oldest first.
+      responses:
+        '200':
+          description: Dashboard data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+              example:
+                counts:
+                  received: 2
+                  diagnosing: 1
+                  waiting_parts: 3
+                  repairing: 1
+                  ready: 2
+                  delivered: 14
+                  cancelled: 1
+                stale_tickets:
+                  - id: 42
+                    customer_id: 1
+                    customer:
+                      id: 1
+                      name: Ana Mora
+                      phone: '+50688001234'
+                    device_type: laptop
+                    brand: Lenovo
+                    model: ThinkPad T14
+                    serial_number: PF-2X9QK1
+                    reported_issue: Does not turn on after a coffee spill.
+                    diagnosis: Liquid damage on the keyboard; motherboard OK.
+                    estimated_cost: 45000.00
+                    status: waiting_parts
+                    tracking_code: BT-7K3QX
+                    created_at: '2026-10-01T15:10:00Z'
+                    updated_at: '2026-10-08T11:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/public/track/{tracking_code}:
+    get:
+      tags: [Public]
+      operationId: trackTicket
+      summary: Track a repair by code
+      description: |
+        Lookup is case-insensitive, trims surrounding whitespace, and the `BT-` prefix is
+        optional (`7k3qx` → `BT-7K3QX`). Returns only whitelisted fields: no customer data,
+        serial number, diagnosis, cost, notes or internal IDs. Rate-limited to 10 requests
+        per minute per client IP.
+      security: []
+      parameters:
+        - name: tracking_code
+          in: path
+          required: true
+          description: Tracking code as typed by the customer (normalized by the server).
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 20
+          example: bt-7k3qx
+      responses:
+        '200':
+          description: Public tracking information.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicTracking'
+              example:
+                tracking_code: BT-7K3QX
+                device_type: laptop
+                brand: Lenovo
+                model: ThinkPad T14
+                status: diagnosing
+                last_status_change_at: '2026-10-02T09:30:00Z'
+                timeline:
+                  - status: received
+                    at: '2026-10-01T15:10:00Z'
+                  - status: diagnosing
+                    at: '2026-10-02T09:30:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          description: Too many lookups from this IP.
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying.
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: rate_limited
+                  message: Too many requests. Try again in 42 seconds.
+
+components:
+  securitySchemes:
+    staffToken:
+      type: http
+      scheme: bearer
+      description: The shop's `STAFF_TOKEN` (at least 16 characters).
+
+  parameters:
+    CustomerId:
+      name: customer_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    TicketId:
+      name: ticket_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    Query:
+      name: q
+      in: query
+      required: false
+      description: Case-insensitive substring search.
+      schema:
+        type: string
+        maxLength: 100
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid staff token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: unauthorized
+              message: Missing or invalid staff token.
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: not_found
+              message: Ticket not found.
+    DuplicatePhone:
+      description: Another customer already has this phone number.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: conflict
+              message: A customer with phone +50688001234 already exists.
+              details:
+                field: phone
+                existing_customer_id: 1
+    TicketFinal:
+      description: The ticket is delivered or cancelled and can no longer be edited.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: ticket_final
+              message: Ticket BT-7K3QX is delivered and cannot be edited.
+    ValidationError:
+      description: Request failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: validation_error
+              message: Request validation failed.
+              details:
+                - field: phone
+                  message: Phone must contain 8 to 15 digits, optionally starting with +.
+
+  examples:
+    TicketReceived:
+      summary: Newly created ticket
+      value:
+        id: 42
+        customer_id: 1
+        customer:
+          id: 1
+          name: Ana Mora
+          phone: '+50688001234'
+        device_type: laptop
+        brand: Lenovo
+        model: ThinkPad T14
+        serial_number: PF-2X9QK1
+        reported_issue: Does not turn on after a coffee spill.
+        diagnosis: null
+        estimated_cost: null
+        status: received
+        tracking_code: BT-7K3QX
+        created_at: '2026-10-01T15:10:00Z'
+        updated_at: '2026-10-01T15:10:00Z'
+    TicketDiagnosing:
+      summary: Ticket being diagnosed
+      value:
+        id: 42
+        customer_id: 1
+        customer:
+          id: 1
+          name: Ana Mora
+          phone: '+50688001234'
+        device_type: laptop
+        brand: Lenovo
+        model: ThinkPad T14
+        serial_number: PF-2X9QK1
+        reported_issue: Does not turn on after a coffee spill.
+        diagnosis: Liquid damage on the keyboard; motherboard OK.
+        estimated_cost: 45000.00
+        status: diagnosing
+        tracking_code: BT-7K3QX
+        created_at: '2026-10-01T15:10:00Z'
+        updated_at: '2026-10-02T09:30:00Z'
+
+  schemas:
+    Error:
+      type: object
+      description: Standard error envelope used by every error response (except the health check).
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              pattern: '^[a-z][a-z0-9_]*$'
+              description: |
+                Machine-readable snake_case code, e.g. `unauthorized`, `not_found`,
+                `validation_error`, `conflict`, `invalid_transition`, `ticket_final`,
+                `rate_limited`, `tracking_code_generation_failed`.
+            message:
+              type: string
+              description: Human-readable message.
+            details:
+              description: Optional extra information (shape depends on `code`).
+
+    Health:
+      type: object
+      required: [status, database]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        database:
+          type: string
+          enum: [ok, error]
+
+    # --- Shared field definitions ---
+    TrackingCode:
+      type: string
+      description: '`BT-` + 5 characters from `23456789ABCDEFGHJKMNPQRSTVWXYZ`.'
+      pattern: '^BT-[23456789ABCDEFGHJKMNPQRSTVWXYZ]{5}$'
+      examples: [BT-7K3QX]
+    TicketStatus:
+      type: string
+      enum: [received, diagnosing, waiting_parts, repairing, ready, delivered, cancelled]
+    DeviceType:
+      type: string
+      enum: [laptop, desktop, phone, tablet, printer, other]
+    CustomerName:
+      type: string
+      minLength: 1
+      maxLength: 100
+    PhoneInput:
+      type: string
+      description: |
+        Free-form input; spaces, dashes and parentheses are removed before validation.
+        After normalization it must match `^\+?\d{8,15}$`.
+      maxLength: 20
+      pattern: '^[0-9+()\- ]+$'
+      examples: ['+506 8800-1234']
+    Phone:
+      type: string
+      description: Normalized phone number.
+      pattern: '^\+?\d{8,15}$'
+      examples: ['+50688001234']
+    Email:
+      type: [string, 'null']
+      format: email
+      maxLength: 254
+    DeviceText:
+      type: string
+      minLength: 1
+      maxLength: 60
+    OptionalDeviceText:
+      type: [string, 'null']
+      maxLength: 60
+    ReportedIssue:
+      type: string
+      minLength: 1
+      maxLength: 2000
+    Diagnosis:
+      type: [string, 'null']
+      maxLength: 2000
+    EstimatedCost:
+      type: [number, 'null']
+      description: Estimated cost in CRC (₡), 2 decimal places (stored as `Numeric(10,2)`).
+      minimum: 0
+      maximum: 10000000
+      examples: [45000.00]
+    NoteText:
+      type: string
+      minLength: 1
+      maxLength: 1000
+    Timestamp:
+      type: string
+      format: date-time
+      description: UTC, ISO 8601 with `Z` suffix.
+      examples: ['2026-10-01T15:10:00Z']
+
+    # --- Customers ---
+    Customer:
+      type: object
+      required: [id, name, phone, email, created_at]
+      properties:
+        id:
+          type: integer
+        name:
+          $ref: '#/components/schemas/CustomerName'
+        phone:
+          $ref: '#/components/schemas/Phone'
+        email:
+          $ref: '#/components/schemas/Email'
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+    CustomerSummary:
+      type: object
+      required: [id, name, phone]
+      properties:
+        id:
+          type: integer
+        name:
+          $ref: '#/components/schemas/CustomerName'
+        phone:
+          $ref: '#/components/schemas/Phone'
+    CustomerCreate:
+      type: object
+      additionalProperties: false
+      required: [name, phone]
+      properties:
+        name:
+          $ref: '#/components/schemas/CustomerName'
+        phone:
+          $ref: '#/components/schemas/PhoneInput'
+        email:
+          $ref: '#/components/schemas/Email'
+    CustomerUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          $ref: '#/components/schemas/CustomerName'
+        phone:
+          $ref: '#/components/schemas/PhoneInput'
+        email:
+          $ref: '#/components/schemas/Email'
+    CustomerList:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+        total:
+          type: integer
+          minimum: 0
+
+    # --- Tickets ---
+    Ticket:
+      type: object
+      required:
+        - id
+        - customer_id
+        - customer
+        - device_type
+        - brand
+        - model
+        - serial_number
+        - reported_issue
+        - diagnosis
+        - estimated_cost
+        - status
+        - tracking_code
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+        customer_id:
+          type: integer
+        customer:
+          $ref: '#/components/schemas/CustomerSummary'
+        device_type:
+          $ref: '#/components/schemas/DeviceType'
+        brand:
+          $ref: '#/components/schemas/DeviceText'
+        model:
+          $ref: '#/components/schemas/OptionalDeviceText'
+        serial_number:
+          $ref: '#/components/schemas/OptionalDeviceText'
+        reported_issue:
+          $ref: '#/components/schemas/ReportedIssue'
+        diagnosis:
+          $ref: '#/components/schemas/Diagnosis'
+        estimated_cost:
+          $ref: '#/components/schemas/EstimatedCost'
+        status:
+          $ref: '#/components/schemas/TicketStatus'
+        tracking_code:
+          $ref: '#/components/schemas/TrackingCode'
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+        updated_at:
+          $ref: '#/components/schemas/Timestamp'
+    TicketCreate:
+      type: object
+      additionalProperties: false
+      required: [customer_id, device_type, brand, reported_issue]
+      properties:
+        customer_id:
+          type: integer
+          minimum: 1
+        device_type:
+          $ref: '#/components/schemas/DeviceType'
+        brand:
+          $ref: '#/components/schemas/DeviceText'
+        model:
+          $ref: '#/components/schemas/OptionalDeviceText'
+        serial_number:
+          $ref: '#/components/schemas/OptionalDeviceText'
+        reported_issue:
+          $ref: '#/components/schemas/ReportedIssue'
+        diagnosis:
+          $ref: '#/components/schemas/Diagnosis'
+        estimated_cost:
+          $ref: '#/components/schemas/EstimatedCost'
+    TicketUpdate:
+      type: object
+      description: '`customer_id`, `status` and `tracking_code` are not accepted.'
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        device_type:
+          $ref: '#/components/schemas/DeviceType'
+        brand:
+          $ref: '#/components/schemas/DeviceText'
+        model:
+          $ref: '#/components/schemas/OptionalDeviceText'
+        serial_number:
+          $ref: '#/components/schemas/OptionalDeviceText'
+        reported_issue:
+          $ref: '#/components/schemas/ReportedIssue'
+        diagnosis:
+          $ref: '#/components/schemas/Diagnosis'
+        estimated_cost:
+          $ref: '#/components/schemas/EstimatedCost'
+    TicketList:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Ticket'
+        total:
+          type: integer
+          minimum: 0
+    StatusChange:
+      type: object
+      additionalProperties: false
+      required: [to_status]
+      properties:
+        to_status:
+          $ref: '#/components/schemas/TicketStatus'
+        note:
+          $ref: '#/components/schemas/NoteText'
+    NoteCreate:
+      type: object
+      additionalProperties: false
+      required: [note]
+      properties:
+        note:
+          $ref: '#/components/schemas/NoteText'
+
+    # --- Timeline ---
+    TicketEvent:
+      type: object
+      description: |
+        `kind = status`: `to_status` set, `from_status` set except for the creation event,
+        `note` optional. `kind = note`: both statuses `null`, `note` required.
+      required: [id, ticket_id, kind, from_status, to_status, note, created_at]
+      properties:
+        id:
+          type: integer
+        ticket_id:
+          type: integer
+        kind:
+          type: string
+          enum: [status, note]
+        from_status:
+          oneOf:
+            - $ref: '#/components/schemas/TicketStatus'
+            - type: 'null'
+        to_status:
+          oneOf:
+            - $ref: '#/components/schemas/TicketStatus'
+            - type: 'null'
+        note:
+          oneOf:
+            - $ref: '#/components/schemas/NoteText'
+            - type: 'null'
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+    TicketEventList:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketEvent'
+        total:
+          type: integer
+          minimum: 0
+
+    # --- Dashboard ---
+    StatusCounts:
+      type: object
+      additionalProperties: false
+      required: [received, diagnosing, waiting_parts, repairing, ready, delivered, cancelled]
+      properties:
+        received: {type: integer, minimum: 0}
+        diagnosing: {type: integer, minimum: 0}
+        waiting_parts: {type: integer, minimum: 0}
+        repairing: {type: integer, minimum: 0}
+        ready: {type: integer, minimum: 0}
+        delivered: {type: integer, minimum: 0}
+        cancelled: {type: integer, minimum: 0}
+    Dashboard:
+      type: object
+      required: [counts, stale_tickets]
+      properties:
+        counts:
+          $ref: '#/components/schemas/StatusCounts'
+        stale_tickets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Ticket'
+
+    # --- Public ---
+    PublicTracking:
+      type: object
+      description: Exact public whitelist (spec 9.15). Nothing else may be added.
+      additionalProperties: false
+      required: [tracking_code, device_type, brand, model, status, last_status_change_at, timeline]
+      properties:
+        tracking_code:
+          $ref: '#/components/schemas/TrackingCode'
+        device_type:
+          $ref: '#/components/schemas/DeviceType'
+        brand:
+          $ref: '#/components/schemas/DeviceText'
+        model:
+          $ref: '#/components/schemas/OptionalDeviceText'
+        status:
+          $ref: '#/components/schemas/TicketStatus'
+        last_status_change_at:
+          $ref: '#/components/schemas/Timestamp'
+        timeline:
+          type: array
+          description: Status events only, oldest first.
+          items:
+            $ref: '#/components/schemas/PublicTimelineEntry'
+    PublicTimelineEntry:
+      type: object
+      additionalProperties: false
+      required: [status, at]
+      properties:
+        status:
+          $ref: '#/components/schemas/TicketStatus'
+        at:
+          $ref: '#/components/schemas/Timestamp'
