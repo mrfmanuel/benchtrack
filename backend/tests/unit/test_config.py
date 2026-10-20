@@ -49,6 +49,13 @@ def test_short_or_blank_staff_token_fails(token):
         make(staff_token=token)
 
 
+def test_rejected_token_is_not_echoed_in_the_error():
+    almost_secret = "fifteen-chars-x"
+    with pytest.raises(ValidationError) as exc_info:
+        make(staff_token=almost_secret)
+    assert almost_secret not in str(exc_info.value)
+
+
 def test_sixteen_char_token_is_accepted():
     assert make(staff_token="x" * 16).staff_token.get_secret_value() == "x" * 16
 

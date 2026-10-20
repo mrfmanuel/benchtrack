@@ -13,7 +13,14 @@ LogFormat = Literal["text", "json"]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # Repo-root .env first, then backend/.env (later files win). Paths are relative to the cwd.
+    # hide_input_in_errors: a rejected STAFF_TOKEN must never be echoed into startup logs.
+    model_config = SettingsConfigDict(
+        env_file=("../.env", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+        hide_input_in_errors=True,
+    )
 
     staff_token: SecretStr
     database_url: str = "sqlite:///./benchtrack.db"

@@ -394,19 +394,30 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Transition not allowed from the current status.
+          description: |
+            Transition not allowed from the current status (`invalid_transition`), or the
+            ticket is already `delivered`/`cancelled` (`ticket_final`).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                error:
-                  code: invalid_transition
-                  message: Cannot change status from received to ready.
-                  details:
-                    from_status: received
-                    to_status: ready
-                    allowed: [diagnosing, cancelled]
+              examples:
+                invalidTransition:
+                  summary: Transition not allowed
+                  value:
+                    error:
+                      code: invalid_transition
+                      message: Cannot change status from received to ready.
+                      details:
+                        from_status: received
+                        to_status: ready
+                        allowed: [cancelled, diagnosing]
+                ticketFinal:
+                  summary: Ticket is final
+                  value:
+                    error:
+                      code: ticket_final
+                      message: Ticket BT-7K3QX is delivered and cannot be edited.
         '422':
           $ref: '#/components/responses/ValidationError'
 
