@@ -27,7 +27,7 @@ push to main ──► CI (ci.yml, 6 jobs) ──success──► CD (cd.yml) �
 | Health check path | `/api/health` (returns `503` when the database is unreachable) |
 | Auto-Deploy | **Off**: deploys come only from CD, after CI passes. With it on, Render would deploy every push, including commits whose CI fails. |
 
-The container listens on `$PORT`, which Render sets itself. `docker/entrypoint.sh` runs `alembic upgrade head` before starting uvicorn, so migrations apply on every deploy. Uvicorn runs with `--proxy-headers`, so the public rate limit sees the real client IP behind Render's proxy.
+The container listens on `$PORT`, which Render sets itself. `docker/entrypoint.sh` runs `alembic upgrade head` before starting uvicorn, so migrations apply on every deploy. Uvicorn runs with `--no-proxy-headers`: the client IP for the rate limit comes from `CLIENT_IP_HEADER`, and HTTPS (for HSTS) from `X-Forwarded-Proto` (see [`security/pr-audit-*.md`](../security/)).
 
 ### 3. Environment variables (web service → Environment)
 
@@ -37,6 +37,7 @@ The container listens on `$PORT`, which Render sets itself. `docker/entrypoint.s
 | `DATABASE_URL` | the Render PostgreSQL **Internal Database URL** | `postgres://` and `postgresql://` URLs are accepted (switched to psycopg 3 automatically). |
 | `LOG_FORMAT` | `json` | Tracking codes are masked in logs. |
 | `LOG_LEVEL` | `INFO` | optional |
+| `CLIENT_IP_HEADER` | `CF-Connecting-IP` | **Required on Render** for the public rate limit (10 lookups/min per client). Render is fronted by Cloudflare, which overwrites this header with the real client IP. Without it every client shares the proxy's address (the app logs a warning at startup). Never `X-Forwarded-For`: Render appends to it, so clients can forge it (rejected at startup). |
 | `VITE_SHOP_NAME` | shop name for receipts and the header | optional. Render passes service variables to the Docker build, where the frontend build bakes the name into the bundle (public). |
 
 Do **not** set `APP_VERSION` on Render: the app falls back to `RENDER_GIT_COMMIT`, which Render sets for each deploy, so `/api/health` reports the deployed commit SHA.
@@ -93,6 +94,7 @@ A successful CD run ends with the notice `<sha> is live at <APP_URL>` and the jo
 | `/api/health` → `503 degraded` | Database unreachable or expired (free tier) | Render → PostgreSQL status. Check `DATABASE_URL` uses the Internal URL. |
 | Service won't start; logs show a `STAFF_TOKEN` error | `STAFF_TOKEN` missing or shorter than 16 characters | Set it in Render → Environment (the value is never logged); redeploy. |
 | First request takes ~1 minute | Free instance waking from sleep | Expected on the free tier. |
+| Startup log: `Running on Render without CLIENT_IP_HEADER` | The env var is missing; all clients share one public rate limit, so customers may see "Too many lookups" | Set `CLIENT_IP_HEADER=CF-Connecting-IP` in Render → Environment. |
 | Pushes deploy even when CI fails | Render *Auto-Deploy* is on | Turn Auto-Deploy **off**; CD is the deploy path. |
 
 Logs: Render → web service → *Logs* (JSON lines, tracking codes shown as `BT-*****`).

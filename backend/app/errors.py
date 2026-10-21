@@ -132,6 +132,12 @@ def register_exception_handlers(app: FastAPI) -> None:
         return error_response(exc.status_code, code, message, headers=exc.headers)
 
     @app.exception_handler(Exception)
-    async def _unhandled(_request: Request, exc: Exception) -> JSONResponse:
+    async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+        # Starlette answers unhandled errors outside the middleware stack, so the security
+        # headers are added here too. (Imported here: security_headers → docs → errors.)
+        from app.security_headers import security_headers
+
         logger.exception("Unhandled error")
-        return error_response(500, "internal_error", "Internal server error.")
+        return error_response(
+            500, "internal_error", "Internal server error.", headers=security_headers(request.scope)
+        )

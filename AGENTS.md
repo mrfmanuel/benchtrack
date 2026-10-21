@@ -47,6 +47,8 @@ Instructions for AI coding agents (and human contributors) working in this repos
 - DB: SQLAlchemy 2.x, engine-agnostic models. `DATABASE_URL` defaults to SQLite (`sqlite:///./benchtrack.db`); PostgreSQL in Compose/production. Keep engine-specific code in `app/db.py`. Details: [`docs/database.md`](docs/database.md).
 - Schema changes **only via Alembic** (`backend/alembic/`): change `app/models.py`, run `uv run alembic revision --autogenerate -m "..."`, review the file, then `uv run alembic upgrade head`. The app never calls `create_all` (only the API test fixture does). Never edit an applied migration.
 - Auth: `Authorization: Bearer <STAFF_TOKEN>` dependency on all staff routes; compare with `secrets.compare_digest`.
+- Security headers (`app/security_headers.py`): CSP per path (`/api/*` none, `/docs` pinned Swagger files + inline-script hash, SPA `'self'`), nosniff, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, Permissions-Policy, HSTS on HTTPS, `Cache-Control: no-store` on `/api/*` except the contract. The SPA must stay free of inline scripts/styles; changing the Swagger init script updates its hash automatically.
+- Client IP for the public rate limit: `app/services/client_ip.py` (TCP peer or `CLIENT_IP_HEADER`; never `X-Forwarded-For`). Uvicorn runs with `--no-proxy-headers`.
 - Run: `uv run alembic upgrade head` then `uv run uvicorn app.main:app --reload` · Lint: `uv run ruff check .` · Seed: `uv run python -m app.seed`
 - Local PostgreSQL: `docker compose up -d db --wait` (127.0.0.1:5433; use `127.0.0.1`, not `localhost`).
 - API docs: `GET /docs` (Swagger UI) renders the served contract `GET /api/openapi.yaml`; FastAPI's generated schema is disabled.

@@ -185,6 +185,19 @@ jobs:
           curl -fsS -o /dev/null "$BASE_URL/docs"
           curl -fsS -o /dev/null "$BASE_URL/api/openapi.yaml"
           test "$(docker inspect -f '{{.Config.User}}' "$IMAGE")" = benchtrack
+          # Security headers on the real server (API, SPA, Swagger UI).
+          curl -fsS -D - -o /dev/null "$BASE_URL/api/health" | grep -qi '^cache-control: no-store'
+          curl -fsS -D - -o /dev/null "$BASE_URL/api/health" | grep -qi "^content-security-policy: default-src 'none'"
+          curl -fsS -D - -o /dev/null "$BASE_URL/" | grep -qi '^x-frame-options: DENY'
+          curl -fsS -D - -o /dev/null "$BASE_URL/docs" | grep -qi '^content-security-policy: .*swagger-ui-bundle.js'
+          # Regression: a forged X-Forwarded-For per request must not reset the rate limit
+          # (uvicorn used to trust it with --forwarded-allow-ips='*').
+          codes=""
+          for i in $(seq 1 11); do
+            codes="$codes $(curl -s -o /dev/null -w '%{http_code}' -H "X-Forwarded-For: 198.51.100.$i" "$BASE_URL/api/public/track/BT-AAAAA")"
+          done
+          echo "public lookups with forged X-Forwarded-For:$codes"
+          test "${codes##* }" = 429
           echo "Smoke test passed"
       - name: Container logs
         if: always()

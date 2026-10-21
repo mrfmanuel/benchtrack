@@ -19,22 +19,30 @@ _CDN = f"https://cdn.jsdelivr.net/npm/swagger-ui-dist@{SWAGGER_UI_VERSION}"
 _CSS_SRI = "sha384-4c3vsE5f+trhFyHrFrLM1fFGUn531NIaC7dcqEWIJdoRQJ5CkJbSuSCwXLpaS1KF"
 _JS_SRI = "sha384-9Td7MKiIr2S83E1kZyyVi8KdJw/S8CpAvu0llLyMeg0xq/hDGiZJfVn0fV4llCmK"
 
+# The only inline script. Its hash is allowed by the /docs Content-Security-Policy
+# (app/security_headers.py), so changing it here keeps the policy in sync automatically.
+# validatorUrl: null stops Swagger UI from loading a badge image from validator.swagger.io.
+SWAGGER_INIT_SCRIPT = (
+    'window.ui = SwaggerUIBundle({ url: "/api/openapi.yaml", dom_id: "#swagger-ui", '
+    "validatorUrl: null });"
+)
+SWAGGER_CSS_URL = f"{_CDN}/swagger-ui.css"
+SWAGGER_JS_URL = f"{_CDN}/swagger-ui-bundle.js"
+
 SWAGGER_HTML = f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BenchTrack API</title>
-  <link rel="stylesheet" href="{_CDN}/swagger-ui.css"
+  <link rel="stylesheet" href="{SWAGGER_CSS_URL}"
         integrity="{_CSS_SRI}" crossorigin="anonymous">
 </head>
 <body>
   <div id="swagger-ui"></div>
-  <script src="{_CDN}/swagger-ui-bundle.js"
+  <script src="{SWAGGER_JS_URL}"
           integrity="{_JS_SRI}" crossorigin="anonymous"></script>
-  <script>
-    window.ui = SwaggerUIBundle({{ url: "/api/openapi.yaml", dom_id: "#swagger-ui" }});
-  </script>
+  <script>{SWAGGER_INIT_SCRIPT}</script>
 </body>
 </html>
 """

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.errors import RateLimitedError
+from app.services.client_ip import rate_limit_key
 
 SessionDep = Annotated[Session, Depends(get_session)]
 QueryParam = Annotated[
@@ -17,12 +18,16 @@ OffsetParam = Annotated[int, Query(ge=0)]
 
 
 def public_rate_limit(request: Request) -> None:
-    """10 requests/min per client IP on public routes (spec §9.14).
+    """10 requests/min per client on public routes (spec §9.14).
 
-    The client IP comes from uvicorn, which honours X-Forwarded-For only when run with
-    `--proxy-headers` behind a trusted proxy.
+    The client is the TCP peer, or the edge-set `CLIENT_IP_HEADER` when configured; never
+    `X-Forwarded-For`, which clients can forge (see app/services/client_ip.py).
     """
-    client_ip = request.client.host if request.client else "unknown"
-    result = request.app.state.rate_limiter.hit(client_ip)
+    key = rate_limit_key(
+        request.client.host if request.client else None,
+        request.headers,
+        request.app.state.settings.client_ip_header,
+    )
+    result = request.app.state.rate_limiter.hit(key)
     if not result.allowed:
         raise RateLimitedError(result.retry_after)

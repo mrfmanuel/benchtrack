@@ -52,6 +52,7 @@ Copy `.env.example` to `.env` (never commit `.env`).
 | `LOG_FORMAT` | `text` or `json` (`json` in Compose/production) | `text` |
 | `FRONTEND_DIST` | Built SPA directory to serve from FastAPI (set in the Docker image to `/app/frontend/dist`). Unset in development, where Vite serves the frontend. | — |
 | `PORT` | Port uvicorn listens on inside the container | `8000` |
+| `CLIENT_IP_HEADER` | Header the edge proxy overwrites with the client IP, used by the public rate limit (Render: `CF-Connecting-IP`). Unset: the TCP peer. `X-Forwarded-For` is rejected (clients can forge it). | — |
 | `APP_VERSION` | Version reported by `GET /api/health` (CI and CD use the commit SHA); falls back to `RENDER_GIT_COMMIT`, set by Render | `dev` |
 | `APP_PORT` | Compose only: host port published for the app | `8000` |
 | `VITE_SHOP_NAME` | Build-time shop name on receipts and in the header (public, not a secret) | `BenchTrack Repair` |
