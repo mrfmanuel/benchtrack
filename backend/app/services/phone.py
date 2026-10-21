@@ -2,7 +2,8 @@
 
 import re
 
-_SEPARATORS_RE = re.compile(r"[\s\-()]")
+# Only the separators the contract allows (`PhoneInput` pattern); tabs or newlines are invalid.
+_SEPARATORS_RE = re.compile(r"[ \-()]")
 _PHONE_RE = re.compile(r"^\+?[0-9]{8,15}$")
 
 

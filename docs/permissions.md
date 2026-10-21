@@ -56,21 +56,29 @@ The `gh` CLI token on the maintainer's machine (`repo`, `workflow` scopes) is al
 
 The rule *"humans merge to `main`; agents open PRs"* (from the PR #1 merge attempt, see the [agent security notes](../security/agent-security-notes.md#2-approval-model-with-real-examples)) is enforced in three places:
 
-1. **GitHub branch protection on `main`:** a pull request is required, the **6 CI checks** must pass (Contract, Backend, Integration, Frontend, Docker image, Semgrep), and force pushes are not allowed. Agents can't push to `main` at all, so every change goes through a PR. The PR #1 merge attempt was also blocked by the agent platform's own classifier ("Merge Without Review").
+1. **GitHub ruleset `protect-main`** on the default branch (active since 2026-10-21): a pull request is required (0 approvals: there is one maintainer), the **7 CI checks** must pass (Contract, Backend, Integration, Frontend, Docker image, Semgrep, Agent pack), force pushes and branch deletion are blocked. Agents can't push to `main` at all, so every change goes through a PR. The PR #1 merge attempt was also blocked by the agent platform's own classifier ("Merge Without Review").
 2. `.claude/settings.json` denies `gh pr merge` and asks before any `git push`.
 3. The guard blocks pushes to `main` and force pushes before they reach GitHub.
 
-The new `agent-pack` CI job (hook, MCP and plugin checks) should be added to the required checks once this PR is merged.
-
-**Verify the protection is active** (it must report `true` and list the checks):
+**Verify the protection is active.** It is a ruleset, so the classic `branches/main/protection` endpoint returns 404; use these instead:
 
 ```bash
-gh api repos/mrfmanuel/benchtrack/branches/main --jq .protected
-gh api repos/mrfmanuel/benchtrack/branches/main/protection \
-  --jq '{checks: .required_status_checks.contexts, force_push: .allow_force_pushes.enabled}'
+gh api repos/mrfmanuel/benchtrack/branches/main --jq .protected      # true
+gh api repos/mrfmanuel/benchtrack/rules/branches/main --jq '[.[].type]'
+# ["deletion","non_fast_forward","pull_request","required_status_checks"]
+gh api repos/mrfmanuel/benchtrack/rules/branches/main \
+  --jq '.[] | select(.type=="required_status_checks") | [.parameters.required_status_checks[].context]'
 ```
 
-If you use a *ruleset* instead of classic protection, check it with `gh api repos/mrfmanuel/benchtrack/rules/branches/main`.
+### Lesson: a new required check blocks open PRs that predate its job
+
+When the ruleset was enabled, PR #2 (`docs/step-9-review`) and PR #3 (`feat/agent-extension-pack`, based on #2) were open. The required check *Agent pack (hooks, MCP server, plugin sync)* is a job that only exists from PR #3's commit on. PR #2's branch has no such job, so its check stays *Expected — waiting for status* forever, and the PR can never be merged. The maintainer merged PR #3 instead, which already contained PR #2's commit; GitHub then shows PR #2 as **merged** too (same merge commit `596067c`).
+
+What to do next time:
+- Add a new CI job as a required check only **after** the PR that introduces it is merged, or
+- rebase or merge `main` into the open PRs after it lands so their branches run the new job, and
+- before requiring a check, list open PRs (`gh pr list`) and decide how each will satisfy it.
+- Never work around it by bypassing the ruleset; that is what it is there to prevent.
 
 ## 4. Relation to the agent security notes
 

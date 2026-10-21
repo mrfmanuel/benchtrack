@@ -41,7 +41,7 @@ npm ci && npm run lint && npm test && npm run typecheck && npm run build
 npx --yes @redocly/cli@2.66.0 lint openapi.yaml
 python -m unittest discover -s agent-hooks/tests            # guard + ruff hook
 (cd mcp-server && uv run --frozen pytest -q && uv run ruff check .)
-python plugins/sync_plugin.py --check                       # plugin copy matches sources
+python plugins/sync_plugin.py --check                       # plugin and .claude/ copies match sources
 claude plugin validate plugins/benchtrack-dev               # if the claude CLI is available
 ```
 

@@ -11,7 +11,12 @@ info:
       wrong token returns `401` (there is no `403`).
     - `GET /api/health` and `GET /api/public/*` are unauthenticated.
     - Every error response uses the `Error` envelope, except the health check, whose
-      `503` body is `{"status": "degraded", "database": "error"}` (spec 9.22).
+      `503` body is `{"status": "degraded", "database": "error", "version": "<commit>"}`
+      (spec 9.22).
+    - Any operation can also fail with `500 internal_error` (unexpected server error), and
+      a method that a path does not support returns `405 method_not_allowed`.
+    - String fields in request bodies are trimmed of surrounding whitespace before
+      validation.
     - All timestamps are UTC, ISO 8601 with a `Z` suffix.
     - Lists are paginated with `limit` (default 50, max 200) and `offset`, and return
       `{ "items": [...], "total": n }`.
@@ -66,6 +71,8 @@ paths:
                 status: degraded
                 database: error
                 version: 3f1c2e9a7b6d5c4e3f2a1b0c9d8e7f6a5b4c3d2e
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/customers:
     get:
@@ -96,6 +103,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
     post:
       tags: [Customers]
       operationId: createCustomer
@@ -130,6 +139,8 @@ paths:
           $ref: '#/components/responses/DuplicatePhone'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/customers/{customer_id}:
     parameters:
@@ -149,6 +160,10 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
     patch:
       tags: [Customers]
       operationId: updateCustomer
@@ -177,6 +192,8 @@ paths:
           $ref: '#/components/responses/DuplicatePhone'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/tickets:
     get:
@@ -234,6 +251,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
     post:
       tags: [Tickets]
       operationId: createTicket
@@ -295,15 +314,27 @@ paths:
                         - field: reported_issue
                           message: Field required.
         '500':
-          description: Could not generate a unique tracking code after 5 attempts.
+          description: |
+            Could not generate a unique tracking code after 5 attempts
+            (`tracking_code_generation_failed`), or an unexpected server error
+            (`internal_error`).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                error:
-                  code: tracking_code_generation_failed
-                  message: Could not generate a unique tracking code. Please retry.
+              examples:
+                trackingCodeGenerationFailed:
+                  summary: No unique tracking code
+                  value:
+                    error:
+                      code: tracking_code_generation_failed
+                      message: Could not generate a unique tracking code. Please retry.
+                internalError:
+                  summary: Unexpected error
+                  value:
+                    error:
+                      code: internal_error
+                      message: Internal server error.
 
   /api/tickets/{ticket_id}:
     parameters:
@@ -326,6 +357,10 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
     patch:
       tags: [Tickets]
       operationId: updateTicket
@@ -358,6 +393,8 @@ paths:
           $ref: '#/components/responses/TicketFinal'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/tickets/{ticket_id}/status:
     parameters:
@@ -424,6 +461,8 @@ paths:
                       message: Ticket BT-7K3QX is delivered and cannot be edited.
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/tickets/{ticket_id}/notes:
     parameters:
@@ -462,6 +501,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/tickets/{ticket_id}/events:
     parameters:
@@ -506,6 +547,10 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/dashboard:
     get:
@@ -551,6 +596,8 @@ paths:
                     updated_at: '2026-10-08T11:00:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /api/public/track/{tracking_code}:
     get:
@@ -594,6 +641,21 @@ paths:
                     at: '2026-10-02T09:30:00Z'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          description: |
+            The code is longer than 20 characters. Such lookups still count toward the
+            rate limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: validation_error
+                  message: Request validation failed.
+                  details:
+                    - field: tracking_code
+                      message: String should have at most 20 characters
         '429':
           description: Too many lookups from this IP.
           headers:
@@ -610,6 +672,8 @@ paths:
                 error:
                   code: rate_limited
                   message: Too many requests. Try again in 42 seconds.
+        '500':
+          $ref: '#/components/responses/InternalError'
 
 components:
   securitySchemes:
@@ -671,17 +735,34 @@ components:
               code: unauthorized
               message: Missing or invalid staff token.
     NotFound:
-      description: Resource not found.
+      description: Resource not found. The message names the resource that was looked up.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
-          example:
-            error:
-              code: not_found
-              message: Ticket not found.
+          examples:
+            ticket:
+              summary: Ticket routes
+              value:
+                error:
+                  code: not_found
+                  message: Ticket 42 not found.
+            customer:
+              summary: Customer routes
+              value:
+                error:
+                  code: not_found
+                  message: Customer 1 not found.
+            trackingCode:
+              summary: Public tracking
+              value:
+                error:
+                  code: not_found
+                  message: No repair found for this tracking code.
     DuplicatePhone:
-      description: Another customer already has this phone number.
+      description: |
+        Another customer already has this phone number. `details.existing_customer_id`
+        is always set, also when two requests race and the unique constraint decides.
       content:
         application/json:
           schema:
@@ -703,6 +784,16 @@ components:
             error:
               code: ticket_final
               message: Ticket BT-7K3QX is delivered and cannot be edited.
+    InternalError:
+      description: Unexpected server error. Details are logged, never returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: internal_error
+              message: Internal server error.
     ValidationError:
       description: Request failed validation.
       content:
@@ -773,9 +864,10 @@ components:
               type: string
               pattern: '^[a-z][a-z0-9_]*$'
               description: |
-                Machine-readable snake_case code, e.g. `unauthorized`, `not_found`,
+                Machine-readable snake_case code: `unauthorized`, `not_found`,
                 `validation_error`, `conflict`, `invalid_transition`, `ticket_final`,
-                `rate_limited`, `tracking_code_generation_failed`.
+                `rate_limited`, `tracking_code_generation_failed`, `method_not_allowed`,
+                `internal_error`, or `http_error` (any other HTTP error status).
             message:
               type: string
               description: Human-readable message.
@@ -819,8 +911,8 @@ components:
     PhoneInput:
       type: string
       description: |
-        Free-form input; spaces, dashes and parentheses are removed before validation.
-        After normalization it must match `^\+?\d{8,15}$`.
+        Free-form input; spaces, dashes and parentheses are removed before validation
+        (other whitespace, such as tabs, is invalid). After normalization it must match `^\+?\d{8,15}$`.
       maxLength: 20
       pattern: '^[0-9+()\- ]+$'
       examples: ['+506 8800-1234']
@@ -849,9 +941,12 @@ components:
       maxLength: 2000
     EstimatedCost:
       type: [number, 'null']
-      description: Estimated cost in CRC (₡), 2 decimal places (stored as `Numeric(10,2)`).
+      description: |
+        Estimated cost in CRC (₡), at most 2 decimal places (stored as `Numeric(10,2)`);
+        more decimals → `422`.
       minimum: 0
       maximum: 10000000
+      multipleOf: 0.01
       examples: [45000.00]
     NoteText:
       type: string

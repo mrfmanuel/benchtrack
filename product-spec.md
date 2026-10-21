@@ -109,7 +109,7 @@ Answers to the open questions raised during spec review. Where this section is m
 13. **Lookup** — case-insensitive, surrounding whitespace trimmed, `BT-` prefix optional (`7k3qx` → `BT-7K3QX`).
 
 ### Public endpoint and security
-14. **Rate limit** — `GET /api/public/track/*`: 10 requests per minute per client IP, in-memory sliding window. Over the limit → `429` with `Retry-After` header and the standard error body. Known limitation: in-memory works for a single instance only (v1 runs one replica); documented in `docs/`. Client IP comes from `X-Forwarded-For` only when running behind the platform proxy (uvicorn `--proxy-headers`).
+14. **Rate limit** — `GET /api/public/track/*`: 10 requests per minute per client IP, in-memory sliding window. Over the limit → `429` with `Retry-After` header and the standard error body. Known limitation: in-memory works for a single instance only (v1 runs one replica); documented in `docs/`. Client IP is the TCP peer, or, when `CLIENT_IP_HEADER` is set, that edge-set header (production behind Cloudflare: `CLIENT_IP_HEADER=CF-Connecting-IP`; IPv6 clients are keyed by /64). `X-Forwarded-For` is never used, because clients can forge it: the app refuses it as `CLIENT_IP_HEADER` and uvicorn runs with `--no-proxy-headers` (changed 2026-10-21, PR #1 audit F3).
 15. **Public response whitelist** — exactly: `tracking_code`, `device_type`, `brand`, `model`, `status`, `last_status_change_at`, `timeline: [{status, at}]`. Explicitly excluded: customer data, `serial_number`, `diagnosis`, `estimated_cost`, notes, internal IDs.
 16. **Logging** — tracking codes are masked in access/application logs (`BT-*****`).
 17. **Auth errors** — missing **or** wrong token → `401` (single role, so no `403`).

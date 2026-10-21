@@ -330,6 +330,19 @@ def test_notes_and_events_on_unknown_ticket_return_404(client):
     assert_error(client.get("/api/tickets/9999/events"), 404, "not_found")
 
 
+@pytest.mark.parametrize("bad_id", ["0", "-1"])
+def test_ticket_id_below_1_is_a_validation_error(client, bad_id):
+    for response in (
+        client.get(f"/api/tickets/{bad_id}"),
+        client.patch(f"/api/tickets/{bad_id}", json={"brand": "HP"}),
+        client.post(f"/api/tickets/{bad_id}/status", json={"to_status": "diagnosing"}),
+        client.post(f"/api/tickets/{bad_id}/notes", json={"note": "x"}),
+        client.get(f"/api/tickets/{bad_id}/events"),
+    ):
+        error = assert_error(response, 422, "validation_error")
+        assert error["details"][0]["field"] == "ticket_id"
+
+
 def test_events_mix_status_and_notes_in_order(client):
     ticket = make_ticket(client)
     client.post(f"/api/tickets/{ticket['id']}/notes", json={"note": "First note."})
