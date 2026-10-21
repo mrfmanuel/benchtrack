@@ -214,6 +214,7 @@ uv run pytest -m integration
 ## CI/CD and deployment
 
 - **CI** ([`ci.yml`](.github/workflows/ci.yml)) runs on every pull request and push to `main`, in 7 jobs: Redocly contract lint; backend ruff + unit/API tests; PostgreSQL integration tests (the job fails if any test is skipped); frontend lint, tests and build; Docker image build + smoke test of the real container; Semgrep; and the agent pack (hook, sync-script and MCP tests). Actions are pinned to commit SHAs with read-only permissions.
+- **Uptime** ([`uptime.yml`](.github/workflows/uptime.yml)) checks production every 15 minutes and opens an `alert` issue when users would be affected ([`ops/alerting.md`](ops/alerting.md)).
 - **CD** ([`cd.yml`](.github/workflows/cd.yml)) runs only after CI succeeds on `main`. It calls the Render deploy hook, then polls `/api/health` until `version` equals the commit CI tested, so an old instance can't pass the check. If the deploy secret is missing, the run is flagged **NOT DEPLOYED** instead of passing silently.
 - **`main` is protected** by a GitHub ruleset: changes only through pull requests, all 7 checks required, no force pushes. A human merges.
 - **Rollback:** redeploy the previous good commit from Render's deploy history ([runbook §4](ops/runbook.md#4-deploy-and-rollback)).
@@ -242,6 +243,7 @@ BenchTrack was built with **Claude Code** as the coding agent and a human mainta
 
 - [`security/README.md`](security/README.md) indexes everything: the PR #1 security audit (including a real rate-limit bypass found and fixed), deterministic scans and their triage (Semgrep, pip-audit, npm audit, gitleaks, Trivy), agent security notes and the AI tool and data policy.
 - [`ops/runbook.md`](ops/runbook.md): start/stop, health and version, logs, deploy and rollback, seeding, rotating the staff token, free-tier limits.
+- [`ops/alerting.md`](ops/alerting.md): a synthetic check of health and the public tracking journey every 15 minutes; it opens an `alert` issue on failure and closes it on recovery.
 - [`ops/incidents/`](ops/incidents/): a real incident report (a deploy that didn't apply), with root cause and the changes that followed.
 
 ## Agent extension pack
@@ -265,16 +267,16 @@ They load automatically in a Claude Code session started in the repo. Details an
 ├── backend/          FastAPI app (app/: routers, services, models, schemas), Alembic migrations, tests (unit, api, integration)
 ├── frontend/         React + TypeScript SPA (src/api: the only HTTP layer; pages, components, lib), Vitest tests
 ├── Dockerfile, docker/, docker-compose.yml    image (SPA build + API, non-root), entrypoint, health check, local stack
-├── .github/workflows/  ci.yml (7 jobs), cd.yml (deploy + verify)
+├── .github/workflows/  ci.yml (7 jobs), cd.yml (deploy + verify), uptime.yml (alert)
 ├── docs/             architecture, agent-team, ai-workflow, testing, database, deployment, agent-extension-pack, permissions, self-review, screenshots/
 ├── security/         PR audit, scan findings and raw outputs, agent security notes, AI tool and data policy
-├── ops/              runbook, incidents/
+├── ops/              runbook, alerting, incidents/
 ├── agent-capabilities/  skills and the contract-reviewer subagent (sources)
 ├── agent-hooks/      guard and ruff hooks + tests
 ├── mcp-server/       read-only BenchTrack MCP server + tests
 ├── plugins/          benchtrack-dev plugin, sync script + tests
 ├── .claude/          Claude Code project settings, synced skills and subagent
-└── scripts/          test_all.py (every test suite, one command), capture_screenshots.py (README screenshots)
+└── scripts/          test_all.py (every test suite, one command), uptime_check.py (alert), capture_screenshots.py
 ```
 
 ## Known limitations
@@ -283,7 +285,7 @@ They load automatically in a Claude Code session started in the repo. Details an
 - **The rate limit is in memory**, so it only works with a single instance (v1 runs one).
 - **Free hosting:** about 1 minute of cold start after idle time, and the free Render PostgreSQL expires about 30 days after creation unless upgraded ([deployment](docs/deployment.md#free-tier-limits)).
 - **One environment:** CD deploys straight to production after green CI. There is no staging environment or manual promotion step ([#11](https://github.com/mrfmanuel/benchtrack/issues/11)).
-- **Observability is logs only:** structured JSON logs and a health check, but no metrics or traces ([#10](https://github.com/mrfmanuel/benchtrack/issues/10)), no alerting ([#7](https://github.com/mrfmanuel/benchtrack/issues/7)) and no on-call automation ([#9](https://github.com/mrfmanuel/benchtrack/issues/9)).
+- **Observability is logs only:** structured JSON logs and a health check, but no metrics or traces ([#10](https://github.com/mrfmanuel/benchtrack/issues/10)), only a synthetic uptime alert ([`ops/alerting.md`](ops/alerting.md)) and no on-call automation ([#9](https://github.com/mrfmanuel/benchtrack/issues/9)).
 - **No notifications:** customers aren't told by SMS, email or WhatsApp; they check the tracking page. QR codes on receipts are out of scope.
 - **Public progress bar:** the stepper on the tracking page marks every step before the current one as done, even a step the repair skipped. For example, a ticket that went diagnosing → repairing shows "Waiting for parts" as done. The history list below it is exact ([#6](https://github.com/mrfmanuel/benchtrack/issues/6)).
 - **English UI only**, currency fixed to CRC (₡).

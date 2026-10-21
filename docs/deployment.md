@@ -82,6 +82,8 @@ git rev-parse origin/main   # should match "version"
 
 A successful CD run ends with the notice `<sha> is live at <APP_URL>` and the job summary `✅ Deployed <sha>`.
 
+After that, the [Uptime workflow](../.github/workflows/uptime.yml) keeps checking production every 15 minutes: health, the tracking page and the public lookup for `BT-DEM22`. It uses the same `APP_URL` variable and needs no secret. On failure it opens an `alert` issue, and it closes the issue on recovery. Details, thresholds and response: [`ops/alerting.md`](../ops/alerting.md).
+
 ## Deploy troubleshooting
 
 | Symptom | Likely cause | What to do |
