@@ -1,0 +1,10 @@
+# Lint settings for the repo scripts (stdlib-only Python, run locally and by CI). Having them
+# here makes the CI lint and the PostToolUse ruff hook use the same rules for scripts/.
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "S", "RUF100"]
+
+[lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]

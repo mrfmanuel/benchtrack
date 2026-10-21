@@ -1,0 +1,51 @@
+# Synthetic uptime check of what users hit in production (issue #7, ops/alerting.md):
+# /api/health, the public tracking page and the public tracking lookup for a demo code.
+# A failure opens one issue labelled `alert` (or comments on the open one); the next passing
+# run comments the recovery and closes it. No token is used and no customer data is fetched.
+#
+# Configuration: variable APP_URL (Settings → Secrets and variables → Actions), shared with CD.
+# Manual run: Actions → Uptime → Run workflow. `simulate_failure` adds a check of a path that
+# doesn't exist, to test the alert without touching production.
+name: Uptime
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"  # GitHub may start scheduled runs a few minutes late
+  workflow_dispatch:
+    inputs:
+      simulate_failure:
+        description: "Also check a non-existent path (forces an alert; production is not changed)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write  # open, comment on and close alert issues
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Health + public tracking journey
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check production and open or close the alert issue
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SIMULATE_FAILURE: ${{ inputs.simulate_failure }}  # empty on scheduled runs
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          args=(--report-issue)
+          if [ "$SIMULATE_FAILURE" = "true" ]; then
+            args+=(--simulate-failure)
+            echo "::notice::simulate_failure=true: an alert issue is expected."
+          fi
+          python3 scripts/uptime_check.py "${args[@]}"

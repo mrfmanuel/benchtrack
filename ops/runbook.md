@@ -45,6 +45,8 @@ curl.exe -s http://127.0.0.1:8000/api/health  # local (APP_PORT if changed)
 | No response for ~1 minute, then OK | Free instance waking up | none |
 | Repeated failures or a 5xx page from the proxy | App not running | Render → *Events* and *Logs* (§3) |
 
+**Automatic check and alert:** the [Uptime workflow](../.github/workflows/uptime.yml) runs this check plus the public tracking journey every 15 minutes. If they fail for more than ~90 s it opens a GitHub issue labelled `alert`, and it closes the issue on recovery. A check every 15 minutes usually keeps the free instance awake. To acknowledge an alert, comment on the issue. To silence it during planned work, disable the workflow. What is checked, thresholds, testing and response: [`alerting.md`](alerting.md).
+
 ## 3. Logs
 
 App logs are JSON lines, one per event. Tracking codes appear masked as `BT-*****`, and secrets are never logged.
@@ -134,3 +136,4 @@ Details: [`docs/deployment.md`](../docs/deployment.md#free-tier-limits).
 - **Monthly:** rebuild with the latest base images and rerun the scans (`docker compose build --pull app`, then Trivy, pip-audit, npm audit, gitleaks). Triage in [`security/scan-findings.md`](../security/scan-findings.md).
 - **Before the free database's expiry date:** back up or replace it (§7).
 - **After every deploy:** `version` in `/api/health` matches `origin/main` (§2).
+- **Every 15 minutes, automatically:** the uptime check ([`alerting.md`](alerting.md)). Watch the repository so `alert` issues reach you.

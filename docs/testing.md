@@ -39,7 +39,7 @@ uv run --no-project python scripts/test_all.py
 | Agent hooks (guard, ruff hook) | `agent-hooks/tests/` | 35 (plus sub-cases) | `python -m unittest discover -s agent-hooks/tests` | Python 3.12 (stdlib) |
 | MCP server | `mcp-server/tests/` | 25 | `cd mcp-server && uv run pytest -q` | nothing (mocked API) |
 | Agent pack sync (plugin and `.claude/` copies) | `plugins/tests/` | 9 | `python -m unittest discover -s plugins/tests`, then `python plugins/sync_plugin.py --check` | nothing |
-| Repo scripts (`test_all.py` helpers) | `scripts/tests/` | 6 | `python -m unittest discover -s scripts/tests` | nothing |
+| Repo scripts (`test_all.py` helpers, uptime check) | `scripts/tests/` | 25 | `python -m unittest discover -s scripts/tests` | nothing (fake HTTP and `gh`) |
 | Docker smoke | `ci.yml` job `docker` | — | see [below](#docker-image) | Docker |
 
 Backend commands run from `backend/`, frontend commands from `frontend/`, Redocly from the repo root.
