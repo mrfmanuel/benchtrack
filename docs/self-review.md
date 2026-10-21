@@ -1,6 +1,6 @@
 # Self-review against the course rubric
 
-A strict peer review of BenchTrack as of 2026-10-21 (branch `docs/final-readme`). Every score cites the files that prove it; where the evidence is weak, the score says so.
+A strict peer review of BenchTrack as of 2026-10-21 (branch `docs/final-readme`; updated on `fix/8-db-host-port` when the task tracker started). Every score cites the files that prove it; where the evidence is weak, the score says so.
 
 ## Which rubric
 
@@ -15,17 +15,17 @@ Both are scored below, the current one first. The draft text comes from the remo
 
 | Rubric | Score | Pass mark |
 |---|---|---|
-| **Current (12 criteria)** | **18 / 24** (16 before the quick fixes in this PR) | 10 |
+| **Current (12 criteria)** | **19 / 24** (16 before the quick fixes; 18 after PR #5; +1 for the task tracker) | 10 |
 | Previous draft (14 criteria) | 30 / 30 | — |
 
-The current rubric costs points where the project has no artifacts at all: a public task tracker, metrics and traces, alerting, an on-call agent, and a separate dev environment with manual promotion. None of these is a quick fix; see [Open gaps](#open-gaps).
+The current rubric still costs points where the project has no artifacts yet: metrics and traces, alerting, an on-call agent, and a separate dev environment with manual promotion. Each is now an issue in the [task tracker](https://github.com/mrfmanuel/benchtrack/issues) ([#7](https://github.com/mrfmanuel/benchtrack/issues/7), [#9](https://github.com/mrfmanuel/benchtrack/issues/9), [#10](https://github.com/mrfmanuel/benchtrack/issues/10), [#11](https://github.com/mrfmanuel/benchtrack/issues/11)); see [Open gaps](#open-gaps).
 
 ## Current rubric (12 criteria, 24 points)
 
 | # | Criterion | Score | Evidence | Why not more |
 |---|---|---|---|---|
 | 1 | Problem description | **2 / 2** | [`README.md`](../README.md) "Problem and solution", "Features", "Live demo"; [`product-spec.md`](../product-spec.md) §1–4 | — |
-| 2 | Product specification | **1 / 2** | [`product-spec.md`](../product-spec.md): features, non-functional requirements, out of scope, **acceptance scenarios (§8)**, 27 decisions (§9) | **No public task tracker.** The repo has 0 GitHub issues; tasks live in the AI log and PRs, which have no acceptance criteria per task and no tracker the agents read from. |
+| 2 | Product specification | **2 / 2** | [`product-spec.md`](../product-spec.md): features, non-functional requirements, out of scope, **acceptance scenarios (§8)**, 27 decisions (§9). **Public tracker:** [GitHub Issues](https://github.com/mrfmanuel/benchtrack/issues) with a task template (Context, Acceptance criteria, Out of scope, Verification), labels, and 6 issues with testable criteria; `AGENTS.md` rule 0 makes every change start from an issue. Agent use: the agent wrote the issues and worked [#8](https://github.com/mrfmanuel/benchtrack/issues/8) on `fix/8-db-host-port`; its PR closes it and ticks each criterion with evidence | **Evidence is thin:** the tracker started on 2026-10-21, after v1 was built (earlier work is only in the AI log, and no issues were made after the fact). A reviewer may give 1 until more issues have been worked through it. (1 before the tracker.) |
 | 3 | Agent team specification | **2 / 2** | [`docs/agent-team.md`](agent-team.md): members, responsibilities, limits, hand-offs and the rules that came from real events. Backed by [`security/agent-security-notes.md`](../security/agent-security-notes.md) and [`docs/permissions.md`](permissions.md) | Written down in this PR, after the work. A reviewer could see it as documenting the process rather than defining it upfront, but the AI log shows the same process step by step. (1 before this PR: the roles were scattered.) |
 | 4 | Context management | **2 / 2** | [`AGENTS.md`](../AGENTS.md) (with [`CLAUDE.md`](../CLAUDE.md) pointing to it) links to the spec, the contract, `docs/database.md`, `docs/testing.md`, `docs/permissions.md`, `docs/agent-team.md`, `docs/architecture.md`, `ops/runbook.md`, `security/README.md` | — |
 | 5 | Application | **2 / 2** | React SPA → FastAPI → PostgreSQL ([`docs/architecture.md`](architecture.md)); `docker compose up --build -d --wait` starts everything; the data persists in the `pgdata` volume (checked in Step 5: restart kept 7 customers and 12 tickets); [screenshots](screenshots/) and the live demo | One manual step before the command: set `STAFF_TOKEN` in `.env` (the app refuses a default token on purpose). |
@@ -36,7 +36,7 @@ The current rubric costs points where the project has no artifacts at all: a pub
 | 10 | Observability | **1 / 2** | JSON logs with masked tracking codes (`app/logging_config.py`, `services/log_masking.py`), `/api/health` with DB check and version | **No metrics, no traces, no request/trace ID** that ties log lines of one request together, and no telemetry UI. |
 | 11 | Alerting on user impact | **0 / 1** | — | No alert. CD warns on a failed deploy, but nothing watches users' experience (e.g. failing tracking lookups or 5xx rate). |
 | 12 | On-call agent | **0 / 2** | — | No agent is woken by an alert. The incident in [`ops/incidents/`](../ops/incidents/2026-10-21-deploy-not-applied.md) was diagnosed by an agent, but it was started by a human, not by an alert. |
-| | **Total** | **18 / 24** | | |
+| | **Total** | **19 / 24** | | |
 
 ## Previous draft rubric (14 criteria, 30 points)
 
@@ -84,6 +84,7 @@ All present and tracked in git (checked with `git ls-files` on this branch):
 | README written for a work in progress ("production deployment comes next") | Rewritten for a reviewer: live demo, screenshots, features, architecture, cross-platform commands, limitations |
 | `docs/deployment.md` and `ops/runbook.md` still said CI has 6 jobs | 7 |
 | `scripts/` and `plugins/tests/` weren't linted in CI | The agent-pack job's ruff step now covers `plugins/` and `scripts/` |
+| No public task tracker (after PR #5) | GitHub Issues with template and labels, 6 issues, rule 0 in `AGENTS.md`; first issue worked through it: [#8](https://github.com/mrfmanuel/benchtrack/issues/8) (DB host port, from the maintainer's clean-clone test) |
 
 ## Open gaps
 
@@ -91,12 +92,11 @@ Ordered by points per hour of work. Each needs a decision from the maintainer.
 
 | Gap | Rubric points | Suggested fix |
 |---|---|---|
-| No alert on user impact | +1 | A synthetic check every few minutes: tracking lookup of a demo code plus `/api/health`, run by GitHub Actions `schedule` or an external uptime monitor. It notifies when lookups fail or are slow. On Render's free tier this also keeps the instance awake. |
-| No public task tracker | +1 | GitHub Issues (or a Project) with one issue per task and acceptance criteria. Agents reference the issue in branch, commit and PR. This only counts going forward; past work can't be backfilled honestly. |
-| Observability is logs only | +1 | A request ID middleware (in every log line and a response header), OpenTelemetry traces and metrics for the tracking and ticket journeys, exported to a free hosted UI. Customer data and tokens are scrubbed before export. |
-| No on-call agent | +2 | The alert triggers a workflow that starts a read-only diagnosing agent (health, logs, recent deploys), posts its findings to an issue, and proposes a fix as a PR. A human approves, as in [`docs/agent-team.md`](agent-team.md). |
-| No dev/staging + manual production deploy | +1 | A second Render service for `main` (dev) and a GitHub `production` environment with a required reviewer for the production deploy job. |
+| No alert on user impact ([#7](https://github.com/mrfmanuel/benchtrack/issues/7)) | +1 | A synthetic check every few minutes: tracking lookup of a demo code plus `/api/health`, run by GitHub Actions `schedule` or an external uptime monitor. It notifies when lookups fail or are slow. On Render's free tier this also keeps the instance awake. |
+| Observability is logs only ([#10](https://github.com/mrfmanuel/benchtrack/issues/10)) | +1 | A request ID middleware (in every log line and a response header), OpenTelemetry traces and metrics for the tracking and ticket journeys, exported to a free hosted UI. Customer data and tokens are scrubbed before export. |
+| No on-call agent ([#9](https://github.com/mrfmanuel/benchtrack/issues/9)) | +2 | The alert triggers a workflow that starts a read-only diagnosing agent (health, logs, recent deploys), posts its findings to an issue, and proposes a fix as a PR. A human approves, as in [`docs/agent-team.md`](agent-team.md). |
+| No dev/staging + manual production deploy ([#11](https://github.com/mrfmanuel/benchtrack/issues/11)) | +1 | A second Render service for `main` (dev) and a GitHub `production` environment with a required reviewer for the production deploy job. |
 
 Product issues found while reviewing (not rubric items):
-- **Public progress stepper:** it shows skipped steps as done (BT-DEM28 never waited for parts but "Waiting for parts" is filled; see [`screenshots/tracking.png`](screenshots/tracking.png)). The history list is correct. Small frontend fix; listed in the README's known limitations.
+- **Public progress stepper** ([#6](https://github.com/mrfmanuel/benchtrack/issues/6)): it shows skipped steps as done (BT-DEM28 never waited for parts but "Waiting for parts" is filled; see [`screenshots/tracking.png`](screenshots/tracking.png)). The history list is correct. Small frontend fix; listed in the README's known limitations.
 - **Receipt screenshot:** the tracking URL on the receipt is the local `http://127.0.0.1:8010/...`, because it uses the page's origin. Correct behaviour, just less illustrative than the production URL.

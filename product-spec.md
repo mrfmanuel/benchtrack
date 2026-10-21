@@ -1,6 +1,8 @@
 # BenchTrack — Product Specification
 
 > Source of truth for scope and behavior. If a request conflicts with this file, flag it instead of silently deviating. Update it when scope intentionally changes.
+>
+> **Task tracker:** work on top of this spec (bugs, features, ops, backlog) is tracked as [GitHub Issues](https://github.com/mrfmanuel/benchtrack/issues), each with acceptance criteria ([template](.github/ISSUE_TEMPLATE/task.md)). The tracker started on 2026-10-21; v1 was built from this spec and is logged step by step in [`docs/ai-workflow.md`](docs/ai-workflow.md).
 
 ## 1. Problem
 
