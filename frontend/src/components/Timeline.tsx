@@ -1,6 +1,6 @@
 import type { PublicTimelineEntry, TicketEvent, TicketStatus } from '../api/types';
 import { formatDateTime } from '../lib/format';
-import { PROGRESS_STEPS, STATUS_TONES, progressIndex, statusLabel } from '../lib/statuses';
+import { type ProgressState, STATUS_TONES, progressStates, statusLabel } from '../lib/statuses';
 
 /** Staff timeline: status changes and notes, oldest first. */
 export function Timeline({ events }: { events: TicketEvent[] }) {
@@ -47,27 +47,44 @@ export function PublicTimeline({ timeline }: { timeline: PublicTimelineEntry[] }
   );
 }
 
-/** Steps of the happy path; cancelled tickets get a single notice instead. */
-export function ProgressIndicator({ status }: { status: TicketStatus }) {
-  const current = progressIndex(status);
-  if (current === -1) {
+/** Read by screen readers after each step's label, matching what the dot shows. */
+const STATE_TEXT: Record<ProgressState, string> = {
+  done: 'done',
+  current: 'current status',
+  skipped: 'skipped',
+  todo: 'not reached yet',
+};
+
+/**
+ * Steps of the happy path, from the statuses the repair actually went through (issue #6):
+ * a step it skipped is never shown as done. Cancelled tickets get a single notice instead.
+ */
+export function ProgressIndicator({
+  status,
+  timeline,
+}: {
+  status: TicketStatus;
+  timeline: PublicTimelineEntry[];
+}) {
+  const steps = progressStates(status, timeline.map((entry) => entry.status));
+  if (steps.length === 0) {
     return <p className="progress-cancelled">This repair was cancelled.</p>;
   }
   return (
-    <ol className="progress" aria-label={`Progress: step ${current + 1} of ${PROGRESS_STEPS.length}`}>
-      {PROGRESS_STEPS.map((step, index) => {
-        const state = index < current ? 'done' : index === current ? 'current' : 'todo';
-        return (
-          <li
-            key={step}
-            className={`progress__step progress__step--${state}`}
-            aria-current={state === 'current' ? 'step' : undefined}
-          >
-            <span className="progress__dot" aria-hidden="true" />
-            <span className="progress__label">{statusLabel(step)}</span>
-          </li>
-        );
-      })}
+    <ol className="progress" aria-label="Repair progress">
+      {steps.map(({ step, state }) => (
+        <li
+          key={step}
+          className={`progress__step progress__step--${state}`}
+          aria-current={state === 'current' ? 'step' : undefined}
+        >
+          <span className="progress__dot" aria-hidden="true" />
+          <span className="progress__label">
+            {statusLabel(step)}
+            <span className="sr-only">: {STATE_TEXT[state]}</span>
+          </span>
+        </li>
+      ))}
     </ol>
   );
 }

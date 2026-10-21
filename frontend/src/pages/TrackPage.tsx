@@ -110,7 +110,7 @@ export function TrackPage() {
             <StatusBadge status={result.status} />
           </div>
           <p className="track__description">{STATUS_DESCRIPTIONS[result.status]}</p>
-          <ProgressIndicator status={result.status} />
+          <ProgressIndicator status={result.status} timeline={result.timeline} />
           <p className="muted small">
             Last update: <time dateTime={result.last_status_change_at}>{formatDateTime(result.last_status_change_at)}</time>
           </p>

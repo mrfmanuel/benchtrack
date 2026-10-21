@@ -778,7 +778,8 @@ textarea:focus-visible {
   z-index: 0;
 }
 .progress__step--done::before,
-.progress__step--current::before {
+.progress__step--current::before,
+.progress__step--skipped::before {
   background: var(--green-fg) !important;
 }
 .progress__dot {
@@ -801,6 +802,15 @@ textarea:focus-visible {
 .progress__step--current {
   color: var(--text);
   font-weight: 700;
+}
+/* Passed over without entering it (e.g. never waited for parts): hollow dashed dot. */
+.progress__step--skipped .progress__dot {
+  border-style: dashed;
+  border-color: var(--muted);
+  background: var(--surface);
+}
+.progress__step--skipped .progress__label {
+  font-style: italic;
 }
 .progress-cancelled {
   padding: 0.6rem 0.8rem;

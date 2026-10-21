@@ -87,3 +87,26 @@ export function statusLabel(status: TicketStatus): string {
 export function progressIndex(status: TicketStatus): number {
   return PROGRESS_STEPS.indexOf(status);
 }
+
+export type ProgressState = 'done' | 'current' | 'skipped' | 'todo';
+
+/**
+ * State of each happy-path step for a ticket, from the statuses it actually went through
+ * (`reached`: every `to_status` / public timeline status). A step before the current one is
+ * `done` only if the ticket was in it; otherwise it was `skipped` (e.g. diagnosing → repairing
+ * skips waiting_parts). Steps after the current one are `todo`, even if reached earlier
+ * (ready → repairing puts "ready" ahead again). Empty for cancelled tickets.
+ */
+export function progressStates(
+  status: TicketStatus,
+  reached: Iterable<TicketStatus>,
+): { step: TicketStatus; state: ProgressState }[] {
+  const current = progressIndex(status);
+  if (current === -1) return [];
+  const seen = new Set(reached);
+  return PROGRESS_STEPS.map((step, index) => ({
+    step,
+    state:
+      index === current ? 'current' : index > current ? 'todo' : seen.has(step) ? 'done' : 'skipped',
+  }));
+}
