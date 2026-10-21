@@ -1,5 +1,6 @@
 """App factory. Run with `uv run uvicorn app.main:app --reload`."""
 
+import logging
 import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -14,6 +15,7 @@ from app.errors import register_exception_handlers
 from app.logging_config import configure_logging
 from app.responses import UTF8JSONResponse
 from app.routers import customers, dashboard, docs, health, public, tickets
+from app.security_headers import SecurityHeadersMiddleware
 from app.services.rate_limit import SlidingWindowRateLimiter
 from app.spa import mount_spa
 
@@ -57,9 +59,15 @@ def create_app(
         PUBLIC_RATE_LIMIT, PUBLIC_RATE_WINDOW_SECONDS, clock=clock
     )
 
+    app.add_middleware(SecurityHeadersMiddleware)
     register_exception_handlers(app)
     for module in (health, customers, tickets, dashboard, public, docs):
         app.include_router(module.router)
+    if settings.render_git_commit and not settings.client_ip_header:
+        logging.getLogger(__name__).warning(
+            "Running on Render without CLIENT_IP_HEADER: the public rate limit keys on the "
+            "proxy address, so all clients share one limit. Set CLIENT_IP_HEADER=CF-Connecting-IP."
+        )
     if settings.frontend_dist is not None:
         mount_spa(app, settings.frontend_dist)
     return app

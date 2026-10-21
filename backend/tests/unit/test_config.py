@@ -17,6 +17,7 @@ def clean_env(monkeypatch):
         "LOG_FORMAT",
         "APP_VERSION",
         "RENDER_GIT_COMMIT",
+        "CLIENT_IP_HEADER",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -134,3 +135,20 @@ def test_blank_values_fall_back_to_dev(monkeypatch):
     monkeypatch.setenv("APP_VERSION", "")
     monkeypatch.setenv("RENDER_GIT_COMMIT", " ")
     assert make(staff_token=VALID_TOKEN).version == "dev"
+
+
+def test_client_ip_header_defaults_to_none_and_blank_means_none(monkeypatch):
+    assert make(staff_token=VALID_TOKEN).client_ip_header is None
+    monkeypatch.setenv("CLIENT_IP_HEADER", "  ")
+    assert make(staff_token=VALID_TOKEN).client_ip_header is None
+
+
+def test_client_ip_header_reads_the_environment(monkeypatch):
+    monkeypatch.setenv("CLIENT_IP_HEADER", "CF-Connecting-IP")
+    assert make(staff_token=VALID_TOKEN).client_ip_header == "CF-Connecting-IP"
+
+
+@pytest.mark.parametrize("value", ["X-Forwarded-For", "x-forwarded-for", " X-FORWARDED-FOR "])
+def test_client_ip_header_rejects_x_forwarded_for(value):
+    with pytest.raises(ValidationError, match="X-Forwarded-For"):
+        make(staff_token=VALID_TOKEN, client_ip_header=value)

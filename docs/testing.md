@@ -10,18 +10,18 @@ How BenchTrack is tested, from fast pure-logic tests to the containerized app. E
                  ├───────────────────────────────┤
                  │ Integration — 10              │  real PostgreSQL, Alembic, key HTTP workflows
              ┌───┴───────────────────────────────┴───┐
-             │ API — 230 (incl. contract parity, SPA) │  in-process HTTP, in-memory SQLite
+             │ API — 252 (incl. contract parity, SPA, headers) │  in-process HTTP, in-memory SQLite
          ┌───┴───────────────────────────────────────┴───┐
-         │ Unit — 227 backend · Vitest — 135 frontend     │  pure logic, no HTTP or DB
+         │ Unit — 276 backend · Vitest — 135 frontend     │  pure logic, no HTTP or DB
          └───────────────────────────────────────────────┘
   Static checks: Redocly (contract) · ruff · oxlint · tsc · Semgrep · actionlint
 ```
 
 | Layer | Where | Tests | Command | Needs |
 |---|---|---:|---|---|
-| Backend unit | `backend/tests/unit/` | 227 | `uv run pytest tests/unit` | nothing |
-| Backend API | `backend/tests/api/` | 230 | `uv run pytest tests/api` | nothing |
-| Backend default run (unit + API) | both of the above | 457 | `uv run pytest` | nothing |
+| Backend unit | `backend/tests/unit/` | 276 | `uv run pytest tests/unit` | nothing |
+| Backend API | `backend/tests/api/` | 252 | `uv run pytest tests/api` | nothing |
+| Backend default run (unit + API) | both of the above | 528 | `uv run pytest` | nothing |
 | Backend integration | `backend/tests/integration/` | 10 | `uv run pytest -m integration` | PostgreSQL + `TEST_DATABASE_URL` |
 | Contract parity | `backend/tests/api/test_contract.py` | 4 | `uv run pytest tests/api/test_contract.py` | nothing |
 | Contract lint | `openapi.yaml` | — | `npx @redocly/cli@2.66.0 lint openapi.yaml` | Node |
@@ -32,22 +32,22 @@ Backend commands run from `backend/`, frontend commands from `frontend/`, Redocl
 
 ## Backend (`backend/`)
 
-### Unit — `tests/unit/` (227)
+### Unit — `tests/unit/` (276)
 
-Pure functions in `app/services/` and `app/config.py`, no HTTP and no database: status transitions (the full allowed/forbidden matrix), tracking-code generation and normalization, phone normalization, stale detection, the sliding-window rate limiter, log masking of tracking codes, settings validation (`STAFF_TOKEN` length, URL normalization, `version` precedence: `APP_VERSION` → `RENDER_GIT_COMMIT` → `dev`) and engine options. They run in about a second.
+Pure functions in `app/services/` and `app/config.py`, no HTTP and no database: status transitions (the full allowed/forbidden matrix), tracking-code generation and normalization, phone normalization, stale detection, the sliding-window rate limiter, log masking of tracking codes, rate-limit client keys (never `X-Forwarded-For`, IPv6 by /64), CSP construction and HTTPS detection, settings validation (`STAFF_TOKEN` length, URL normalization, `version` precedence: `APP_VERSION` → `RENDER_GIT_COMMIT` → `dev`) and engine options. They run in about a second.
 
 ```powershell
 cd backend
 uv run pytest tests/unit
 ```
 
-### API — `tests/api/` (230)
+### API — `tests/api/` (252)
 
-In-process HTTP through FastAPI's `TestClient` against in-memory SQLite (`StaticPool`), with settings, the clock and the log stream injected by `tests/api/conftest.py`. They cover the acceptance scenarios from the spec, every error code and envelope, auth on each staff route, the public whitelist, rate limiting with a fake clock, JSON logging with masked codes, the UTF-8 charset, `/docs` and `/api/openapi.yaml`, the seed script, and SPA serving (`test_spa.py`: `index.html` fallback, `/api/*` keeps the JSON 404, no files outside `dist/`).
+In-process HTTP through FastAPI's `TestClient` against in-memory SQLite (`StaticPool`), with settings, the clock and the log stream injected by `tests/api/conftest.py`. They cover the acceptance scenarios from the spec, every error code and envelope, auth on each staff route, the public whitelist, rate limiting with a fake clock, JSON logging with masked codes, the UTF-8 charset, `/docs` and `/api/openapi.yaml`, the seed script, security headers on every response kind including 401/404/405/422/429/500 (`test_security_headers.py`), and SPA serving (`test_spa.py`: `index.html` fallback, `/api/*` keeps the JSON 404, no files outside `dist/`).
 
 ```powershell
 uv run pytest tests/api
-uv run pytest          # unit + API (integration is deselected in pyproject.toml): 457 passed, 10 deselected
+uv run pytest          # unit + API (integration is deselected in pyproject.toml): 528 passed, 10 deselected
 ```
 
 ### Contract parity — `tests/api/test_contract.py` (4)
@@ -68,7 +68,7 @@ Real PostgreSQL: `alembic upgrade head` on an empty database, constraint naming,
 
    ```powershell
    $env:TEST_DATABASE_URL = "postgresql+psycopg://benchtrack:benchtrack@127.0.0.1:5433/benchtrack_test"
-   uv run pytest -m integration          # 10 passed, 457 deselected
+   uv run pytest -m integration          # 10 passed, 528 deselected
    ```
 
    Use `127.0.0.1`, not `localhost` (see the Windows note in [`database.md`](database.md)). `TEST_DATABASE_URL` can also live in `.env`.

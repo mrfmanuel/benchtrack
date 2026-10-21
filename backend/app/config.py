@@ -51,6 +51,9 @@ class Settings(DatabaseSettings):
     # Reported by /api/health so CD can verify the deployed commit (see `version`).
     app_version: str | None = None
     render_git_commit: str | None = None  # set automatically by Render
+    # Header the edge proxy overwrites with the real client IP (Render: CF-Connecting-IP).
+    # Unset: the rate limit keys on the TCP peer. Never X-Forwarded-For (client-forgeable).
+    client_ip_header: str | None = None
 
     @field_validator("staff_token", mode="before")
     @classmethod
@@ -71,6 +74,15 @@ class Settings(DatabaseSettings):
             if candidate and candidate.strip():
                 return candidate.strip()
         return DEFAULT_VERSION
+
+    @field_validator("client_ip_header", mode="before")
+    @classmethod
+    def _check_client_ip_header(cls, value: object) -> object:
+        if isinstance(value, str):
+            value = value.strip() or None
+        if isinstance(value, str) and value.lower() == "x-forwarded-for":
+            raise ValueError("CLIENT_IP_HEADER must not be X-Forwarded-For: clients can forge it.")
+        return value
 
     @field_validator("log_level", "log_format", mode="before")
     @classmethod
