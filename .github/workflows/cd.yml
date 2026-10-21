@@ -4,7 +4,8 @@
 # Configuration (Settings → Secrets and variables → Actions):
 #   secret   RENDER_DEPLOY_HOOK_URL   Render deploy hook URL (never echoed)
 #   variable APP_URL                  public base URL, e.g. https://benchtrack.onrender.com
-# Until the secret exists, the job is skipped with a notice instead of failing.
+# Until the secret exists, nothing is deployed: the run stays green but shows a warning and
+# a "NOT DEPLOYED" job summary. Re-run it after adding the secret.
 name: CD
 
 on:
@@ -36,9 +37,20 @@ jobs:
         id: config
         env:
           DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          EXPECTED_VERSION: ${{ github.event.workflow_run.head_sha }}
         run: |
           if [ -z "$DEPLOY_HOOK" ]; then
-            echo "::notice title=Deploy skipped::The RENDER_DEPLOY_HOOK_URL secret is not set, so nothing was deployed. Add it (and the APP_URL variable) to enable CD."
+            # Not a failure (CD may not be configured yet), but it must not look like a
+            # deploy: a warning annotation plus a summary line on the run page. After adding
+            # the secret, re-run this run ("Re-run all jobs") to deploy. See
+            # ops/incidents/2026-10-21-deploy-not-applied.md.
+            echo "::warning title=NOT DEPLOYED::The RENDER_DEPLOY_HOOK_URL secret is not set, so $EXPECTED_VERSION was NOT deployed. Add the secret and the APP_URL variable, then re-run this workflow run."
+            {
+              echo "## ⚠️ NOT DEPLOYED"
+              echo
+              echo "Commit \`$EXPECTED_VERSION\` passed CI but was **not deployed**: the \`RENDER_DEPLOY_HOOK_URL\` secret is not set."
+              echo "Production keeps serving the previous version. Add the secret (and the \`APP_URL\` variable), then use **Re-run all jobs** on this run."
+            } >> "$GITHUB_STEP_SUMMARY"
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -82,6 +94,7 @@ jobs:
             if [ "$status" = ok ] && [ "$version" = "$EXPECTED_VERSION" ]; then
               echo "Deployed version: $version (healthy after attempt $attempt, ${SECONDS}s)"
               echo "::notice title=Deployed::$version is live at ${APP_URL%/}"
+              echo "## ✅ Deployed \`$version\` to ${APP_URL%/} (healthy after ${SECONDS}s)" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
             if [ -z "$body" ]; then
@@ -91,5 +104,6 @@ jobs:
             fi
             sleep 15
           done
+          echo "## ❌ Deploy NOT verified: \`$EXPECTED_VERSION\` is not live after ~10 minutes (last: status=${status:-?} version=${version:-?})" >> "$GITHUB_STEP_SUMMARY"
           echo "::error title=Deploy not verified::$url did not report status ok with version $EXPECTED_VERSION within ~10 minutes (last: status=${status:-?} version=${version:-?})"
           exit 1

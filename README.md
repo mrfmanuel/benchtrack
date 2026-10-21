@@ -91,7 +91,7 @@ Tests: see [`docs/testing.md`](docs/testing.md) for every layer, its command and
 ## CI/CD
 
 - [`ci.yml`](.github/workflows/ci.yml) runs on pull requests and pushes to `main`: Redocly contract lint, backend ruff + unit/API tests, PostgreSQL integration tests, frontend lint/test/build, a Docker image smoke test and Semgrep (results uploaded as an artifact).
-- [`cd.yml`](.github/workflows/cd.yml) runs after CI succeeds on `main`: it calls the Render deploy hook and waits up to ~10 minutes until `APP_URL/api/health` reports `status: ok` **and** `version` equal to the commit CI tested, so a still-running old instance cannot pass the check. Configure it under *Settings → Secrets and variables → Actions*: secret `RENDER_DEPLOY_HOOK_URL`, variable `APP_URL`. Until the secret exists, the deploy is skipped with a notice.
+- [`cd.yml`](.github/workflows/cd.yml) runs after CI succeeds on `main`: it calls the Render deploy hook and waits up to ~10 minutes until `APP_URL/api/health` reports `status: ok` **and** `version` equal to the commit CI tested, so a still-running old instance cannot pass the check. Configure it under *Settings → Secrets and variables → Actions*: secret `RENDER_DEPLOY_HOOK_URL`, variable `APP_URL`. Until the secret exists, nothing is deployed and the run shows a **NOT DEPLOYED** warning; re-run it after adding the secret. Setup and troubleshooting: [`docs/deployment.md`](docs/deployment.md).
 
 ## Documentation
 
@@ -100,4 +100,6 @@ Tests: see [`docs/testing.md`](docs/testing.md) for every layer, its command and
 - [`AGENTS.md`](AGENTS.md) — instructions for coding agents and contributors
 - [`docs/database.md`](docs/database.md) — database environments, migrations, seeding, ER diagram
 - [`docs/testing.md`](docs/testing.md) — test pyramid, commands and counts, CI jobs
+- [`docs/deployment.md`](docs/deployment.md) — Render setup, free-tier limits, deploy troubleshooting
+- [`ops/incidents/`](ops/incidents/) — incident reports
 - [`docs/ai-workflow.md`](docs/ai-workflow.md) — AI-assisted development log
