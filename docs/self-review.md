@@ -15,10 +15,10 @@ Both are scored below, the current one first. The draft text comes from the remo
 
 | Rubric | Score | Pass mark |
 |---|---|---|
-| **Current (12 criteria)** | **19 / 24** (16 before the quick fixes; 18 after PR #5; +1 for the task tracker) | 10 |
+| **Current (12 criteria)** | **20 / 24** (16 before the quick fixes; 18 after PR #5; +1 for the task tracker; +1 for the uptime alert) | 10 |
 | Previous draft (14 criteria) | 30 / 30 | — |
 
-The current rubric still costs points where the project has no artifacts yet: metrics and traces, alerting, an on-call agent, and a separate dev environment with manual promotion. Each is now an issue in the [task tracker](https://github.com/mrfmanuel/benchtrack/issues) ([#7](https://github.com/mrfmanuel/benchtrack/issues/7), [#9](https://github.com/mrfmanuel/benchtrack/issues/9), [#10](https://github.com/mrfmanuel/benchtrack/issues/10), [#11](https://github.com/mrfmanuel/benchtrack/issues/11)); see [Open gaps](#open-gaps).
+The current rubric still costs points where the project has no artifacts yet: metrics and traces, an on-call agent, and a separate dev environment with manual promotion. Each is now an issue in the [task tracker](https://github.com/mrfmanuel/benchtrack/issues) ([#9](https://github.com/mrfmanuel/benchtrack/issues/9), [#10](https://github.com/mrfmanuel/benchtrack/issues/10), [#11](https://github.com/mrfmanuel/benchtrack/issues/11)); see [Open gaps](#open-gaps).
 
 ## Current rubric (12 criteria, 24 points)
 
@@ -34,9 +34,9 @@ The current rubric still costs points where the project has no artifacts yet: me
 | 8 | Deployment | **2 / 2** | https://benchtrack.onrender.com; `/api/health` reports the deployed commit (`3eb9052…` on 2026-10-21); public tracking https://benchtrack.onrender.com/track/BT-DEM22 → 200; [`docs/deployment.md`](deployment.md) | — |
 | 9 | CI/CD | **2 / 3** | [`ci.yml`](../.github/workflows/ci.yml) (7 jobs on every PR and push), [`cd.yml`](../.github/workflows/cd.yml) deploys after green CI and verifies the version; required checks via the `protect-main` ruleset; rollback in [`ops/runbook.md`](../ops/runbook.md) §4 | **No dev/staging environment and no manual production gate.** CD deploys straight to production. |
 | 10 | Observability | **1 / 2** | JSON logs with masked tracking codes (`app/logging_config.py`, `services/log_masking.py`), `/api/health` with DB check and version | **No metrics, no traces, no request/trace ID** that ties log lines of one request together, and no telemetry UI. |
-| 11 | Alerting on user impact | **0 / 1** | — | No alert. CD warns on a failed deploy, but nothing watches users' experience (e.g. failing tracking lookups or 5xx rate). |
+| 11 | Alerting on user impact | **1 / 1** | [`uptime.yml`](../.github/workflows/uptime.yml) checks health, the tracking page and the public lookup every 15 minutes and opens an `alert` issue on failure; [`ops/alerting.md`](../ops/alerting.md) explains why these checks reflect user impact, the thresholds and the response. **Demonstrated:** a simulated failure opened [#15](https://github.com/mrfmanuel/benchtrack/issues/15) and the next run closed it ([`ops/alerting.md#demonstration`](../ops/alerting.md#demonstration)) | It doesn't measure real users' error rate (no metrics yet, [#10](https://github.com/mrfmanuel/benchtrack/issues/10)), and the notification is an issue, not a page. (0 before [#7](https://github.com/mrfmanuel/benchtrack/issues/7).) |
 | 12 | On-call agent | **0 / 2** | — | No agent is woken by an alert. The incident in [`ops/incidents/`](../ops/incidents/2026-10-21-deploy-not-applied.md) was diagnosed by an agent, but it was started by a human, not by an alert. |
-| | **Total** | **19 / 24** | | |
+| | **Total** | **20 / 24** | | |
 
 ## Previous draft rubric (14 criteria, 30 points)
 
@@ -92,7 +92,6 @@ Ordered by points per hour of work. Each needs a decision from the maintainer.
 
 | Gap | Rubric points | Suggested fix |
 |---|---|---|
-| No alert on user impact ([#7](https://github.com/mrfmanuel/benchtrack/issues/7)) | +1 | A synthetic check every few minutes: tracking lookup of a demo code plus `/api/health`, run by GitHub Actions `schedule` or an external uptime monitor. It notifies when lookups fail or are slow. On Render's free tier this also keeps the instance awake. |
 | Observability is logs only ([#10](https://github.com/mrfmanuel/benchtrack/issues/10)) | +1 | A request ID middleware (in every log line and a response header), OpenTelemetry traces and metrics for the tracking and ticket journeys, exported to a free hosted UI. Customer data and tokens are scrubbed before export. |
 | No on-call agent ([#9](https://github.com/mrfmanuel/benchtrack/issues/9)) | +2 | The alert triggers a workflow that starts a read-only diagnosing agent (health, logs, recent deploys), posts its findings to an issue, and proposes a fix as a PR. A human approves, as in [`docs/agent-team.md`](agent-team.md). |
 | No dev/staging + manual production deploy ([#11](https://github.com/mrfmanuel/benchtrack/issues/11)) | +1 | A second Render service for `main` (dev) and a GitHub `production` environment with a required reviewer for the production deploy job. |
