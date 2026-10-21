@@ -1,5 +1,6 @@
 """Security header policies (no HTTP): CSP per path, inline-script hash, HTTPS detection."""
 
+import asyncio
 import re
 
 import pytest
@@ -10,6 +11,7 @@ from app.security_headers import (
     DOCS_CSP,
     HSTS,
     SPA_CSP,
+    ForwardedProtoMiddleware,
     content_security_policy,
     csp_hash,
     is_https,
@@ -135,3 +137,25 @@ def test_hsts_only_over_https():
 )
 def test_no_store_on_api_except_the_contract(path, no_store):
     assert (security_headers(scope(path)).get("Cache-Control") == "no-store") is no_store
+
+
+@pytest.mark.parametrize(
+    ("type_", "scheme", "forwarded", "expected"),
+    [
+        ("http", "http", "https", "https"),
+        ("http", "http", None, "http"),
+        ("http", "http", "https, http", "http"),
+        ("http", "https", None, "https"),
+        ("websocket", "ws", "https", "wss"),
+    ],
+)
+def test_forwarded_proto_middleware_sets_the_scheme(type_, scheme, forwarded, expected):
+    seen = {}
+
+    async def app(inner_scope, _receive, _send):
+        seen.update(inner_scope)
+
+    headers = [("X-Forwarded-Proto", forwarded)] if forwarded else []
+    s = scope(scheme=scheme, headers=headers) | {"type": type_}
+    asyncio.run(ForwardedProtoMiddleware(app)(s, None, None))
+    assert seen["scheme"] == expected

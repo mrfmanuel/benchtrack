@@ -111,6 +111,35 @@ def test_no_hsts_over_plain_http(anon):
     assert "strict-transport-security" not in anon.get("/api/health").headers
 
 
+# --- Scheme behind a TLS-terminating proxy (audit finding: http:// redirects) ----------
+
+
+def test_trailing_slash_redirect_keeps_https_behind_the_proxy(client):
+    response = client.get(
+        "/api/tickets/", headers={"X-Forwarded-Proto": "https"}, follow_redirects=False
+    )
+    assert response.status_code == 307
+    assert response.headers["location"].startswith("https://")
+
+
+def test_redirect_stays_http_without_a_tls_proxy(client):
+    response = client.get("/api/tickets/", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"].startswith("http://")
+
+
+def test_forwarded_proto_does_not_change_the_client_address(anon):
+    """Only the scheme is taken from proxy headers; the rate-limit key is unaffected."""
+    statuses = [
+        anon.get(
+            "/api/public/track/BT-ZZZZZ",
+            headers={"X-Forwarded-Proto": "https", "X-Forwarded-For": f"198.51.100.{i}"},
+        ).status_code
+        for i in range(11)
+    ]
+    assert statuses[-1] == 429
+
+
 # --- SPA responses -------------------------------------------------------------------
 
 

@@ -104,6 +104,26 @@ def security_headers(scope: Scope) -> dict[str, str]:
     return headers
 
 
+class ForwardedProtoMiddleware:
+    """Restore the request scheme behind a TLS-terminating proxy.
+
+    Uvicorn runs with --no-proxy-headers (it would also take the client IP from the forgeable
+    X-Forwarded-For), so without this the app sees `http` on Render and absolute URLs it builds,
+    such as FastAPI's trailing-slash redirect, would downgrade to `http://`. Only the scheme is
+    taken from the header. Forging it can only make the server believe it is on HTTPS: absolute
+    URLs and HSTS for the forger's own plain-HTTP request, which browsers ignore.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        plain = scope["type"] in ("http", "websocket") and scope.get("scheme") in ("http", "ws")
+        if plain and is_https(scope):
+            scope = {**scope, "scheme": "https" if scope["type"] == "http" else "wss"}
+        await self.app(scope, receive, send)
+
+
 class SecurityHeadersMiddleware:
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
