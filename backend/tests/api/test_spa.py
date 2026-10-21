@@ -77,7 +77,7 @@ def test_unknown_api_paths_keep_the_json_envelope(web, path):
 
 
 def test_api_and_docs_routes_still_win(web):
-    assert web.get("/api/health").json() == {"status": "ok", "database": "ok"}
+    assert web.get("/api/health").json()["status"] == "ok"
     assert_error(web.get("/api/tickets"), 401, "unauthorized")
     assert_error(web.delete("/api/customers"), 405, "method_not_allowed")
     assert "swagger-ui" in web.get("/docs").text

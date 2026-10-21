@@ -49,6 +49,8 @@ export interface DuplicatePhoneDetails {
 export interface Health {
   status: 'ok' | 'degraded';
   database: 'ok' | 'error';
+  /** Deployed version: APP_VERSION, else RENDER_GIT_COMMIT, else "dev". */
+  version: string;
 }
 
 export interface Page<T> {

@@ -52,6 +52,7 @@ Copy `.env.example` to `.env` (never commit `.env`).
 | `LOG_FORMAT` | `text` or `json` (`json` in Compose/production) | `text` |
 | `FRONTEND_DIST` | Built SPA directory to serve from FastAPI (set in the Docker image to `/app/frontend/dist`). Unset in development, where Vite serves the frontend. | — |
 | `PORT` | Port uvicorn listens on inside the container | `8000` |
+| `APP_VERSION` | Version reported by `GET /api/health` (CI and CD use the commit SHA); falls back to `RENDER_GIT_COMMIT`, set by Render | `dev` |
 | `APP_PORT` | Compose only: host port published for the app | `8000` |
 | `VITE_SHOP_NAME` | Build-time shop name on receipts and in the header (public, not a secret) | `BenchTrack Repair` |
 
@@ -90,7 +91,7 @@ Tests: see [`docs/testing.md`](docs/testing.md) for every layer, its command and
 ## CI/CD
 
 - [`ci.yml`](.github/workflows/ci.yml) runs on pull requests and pushes to `main`: Redocly contract lint, backend ruff + unit/API tests, PostgreSQL integration tests, frontend lint/test/build, a Docker image smoke test and Semgrep (results uploaded as an artifact).
-- [`cd.yml`](.github/workflows/cd.yml) runs after CI succeeds on `main`: it calls the Render deploy hook and waits up to ~5 minutes for `APP_URL/api/health` to report `ok`. Configure it under *Settings → Secrets and variables → Actions*: secret `RENDER_DEPLOY_HOOK_URL`, variable `APP_URL`. Until the secret exists, the deploy is skipped with a notice.
+- [`cd.yml`](.github/workflows/cd.yml) runs after CI succeeds on `main`: it calls the Render deploy hook and waits up to ~10 minutes until `APP_URL/api/health` reports `status: ok` **and** `version` equal to the commit CI tested, so a still-running old instance cannot pass the check. Configure it under *Settings → Secrets and variables → Actions*: secret `RENDER_DEPLOY_HOOK_URL`, variable `APP_URL`. Until the secret exists, the deploy is skipped with a notice.
 
 ## Documentation
 

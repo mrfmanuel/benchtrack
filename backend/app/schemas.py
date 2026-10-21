@@ -80,6 +80,7 @@ class Error(BaseModel):
 class Health(BaseModel):
     status: Literal["ok", "degraded"]
     database: Literal["ok", "error"]
+    version: str = Field(min_length=1)
 
 
 # --- Customers -----------------------------------------------------------------

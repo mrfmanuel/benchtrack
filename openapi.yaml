@@ -41,7 +41,9 @@ paths:
       tags: [Health]
       operationId: getHealth
       summary: Health check
-      description: Runs `SELECT 1` against the database.
+      description: |
+        Runs `SELECT 1` against the database and reports the deployed version, so a
+        deploy can be verified (CD polls until `version` equals the commit it deployed).
       security: []
       responses:
         '200':
@@ -53,6 +55,7 @@ paths:
               example:
                 status: ok
                 database: ok
+                version: 3f1c2e9a7b6d5c4e3f2a1b0c9d8e7f6a5b4c3d2e
         '503':
           description: Database check failed.
           content:
@@ -62,6 +65,7 @@ paths:
               example:
                 status: degraded
                 database: error
+                version: 3f1c2e9a7b6d5c4e3f2a1b0c9d8e7f6a5b4c3d2e
 
   /api/customers:
     get:
@@ -780,7 +784,7 @@ components:
 
     Health:
       type: object
-      required: [status, database]
+      required: [status, database, version]
       properties:
         status:
           type: string
@@ -788,6 +792,13 @@ components:
         database:
           type: string
           enum: [ok, error]
+        version:
+          type: string
+          minLength: 1
+          description: |
+            Deployed version: `APP_VERSION`, else `RENDER_GIT_COMMIT` (set by Render), else
+            `dev`. Normally the full git commit SHA. Not secret (the repository is public).
+          examples: [3f1c2e9a7b6d5c4e3f2a1b0c9d8e7f6a5b4c3d2e, dev]
 
     # --- Shared field definitions ---
     TrackingCode:

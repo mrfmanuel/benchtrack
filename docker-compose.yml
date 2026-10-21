@@ -29,6 +29,8 @@ services:
       context: .
       args:
         VITE_SHOP_NAME: ${VITE_SHOP_NAME:-BenchTrack Repair}
+        # Optional: APP_VERSION=$(git rev-parse HEAD) docker compose up --build; else "dev".
+        APP_VERSION: ${APP_VERSION:-}
     image: benchtrack:local
     restart: unless-stopped
     depends_on:

@@ -194,7 +194,7 @@ describe('error envelope parsing', () => {
     expect(error.code).toBe('http_error');
     expect(error.message).toBe('Request failed with status 502.');
 
-    fetchMock.mockImplementation(async () => jsonResponse(503, { status: 'degraded', database: 'error' }));
+    fetchMock.mockImplementation(async () => jsonResponse(503, { status: 'degraded', database: 'error', version: 'dev' }));
     expect((await catchApiError(api.getHealth())).code).toBe('http_error');
   });
 

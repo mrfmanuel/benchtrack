@@ -8,6 +8,7 @@ from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 MIN_STAFF_TOKEN_LENGTH = 16
+DEFAULT_VERSION = "dev"
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 LogFormat = Literal["text", "json"]
@@ -47,6 +48,9 @@ class Settings(DatabaseSettings):
     log_format: LogFormat = "text"
     # Built SPA to serve (the Docker image sets it). Unset in development: Vite serves it.
     frontend_dist: Path | None = None
+    # Reported by /api/health so CD can verify the deployed commit (see `version`).
+    app_version: str | None = None
+    render_git_commit: str | None = None  # set automatically by Render
 
     @field_validator("staff_token", mode="before")
     @classmethod
@@ -59,6 +63,14 @@ class Settings(DatabaseSettings):
                     f"STAFF_TOKEN must be at least {MIN_STAFF_TOKEN_LENGTH} characters long."
                 )
         return raw
+
+    @property
+    def version(self) -> str:
+        """APP_VERSION, else RENDER_GIT_COMMIT, else "dev" (blank values are skipped)."""
+        for candidate in (self.app_version, self.render_git_commit):
+            if candidate and candidate.strip():
+                return candidate.strip()
+        return DEFAULT_VERSION
 
     @field_validator("log_level", "log_format", mode="before")
     @classmethod

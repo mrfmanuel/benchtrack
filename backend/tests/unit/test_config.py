@@ -10,7 +10,14 @@ VALID_TOKEN = "fictional-test-token-0123456789"
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
-    for name in ("STAFF_TOKEN", "DATABASE_URL", "LOG_LEVEL", "LOG_FORMAT"):
+    for name in (
+        "STAFF_TOKEN",
+        "DATABASE_URL",
+        "LOG_LEVEL",
+        "LOG_FORMAT",
+        "APP_VERSION",
+        "RENDER_GIT_COMMIT",
+    ):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -103,3 +110,27 @@ def test_invalid_log_format_fails(fmt):
 
 def test_log_format_is_case_insensitive():
     assert make(staff_token=VALID_TOKEN, log_format="JSON").log_format == "json"
+
+
+def test_version_defaults_to_dev():
+    assert make(staff_token=VALID_TOKEN).version == "dev"
+
+
+def test_version_prefers_app_version_over_render_git_commit(monkeypatch):
+    monkeypatch.setenv("APP_VERSION", "3f1c2e9a7b6d")
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "a1b2c3d4e5f6")
+    assert make(staff_token=VALID_TOKEN).version == "3f1c2e9a7b6d"
+
+
+@pytest.mark.parametrize("app_version", [None, "", "   "])
+def test_version_falls_back_to_render_git_commit(monkeypatch, app_version):
+    if app_version is not None:
+        monkeypatch.setenv("APP_VERSION", app_version)
+    monkeypatch.setenv("RENDER_GIT_COMMIT", " a1b2c3d4e5f6 ")
+    assert make(staff_token=VALID_TOKEN).version == "a1b2c3d4e5f6"
+
+
+def test_blank_values_fall_back_to_dev(monkeypatch):
+    monkeypatch.setenv("APP_VERSION", "")
+    monkeypatch.setenv("RENDER_GIT_COMMIT", " ")
+    assert make(staff_token=VALID_TOKEN).version == "dev"

@@ -1,5 +1,6 @@
 # BenchTrack: one image serving the API and the built SPA.
-#   docker build -t benchtrack --build-arg VITE_SHOP_NAME="BenchTrack Repair" .
+#   docker build -t benchtrack --build-arg VITE_SHOP_NAME="BenchTrack Repair" \
+#     --build-arg APP_VERSION="$(git rev-parse HEAD)" .
 # The image mirrors the repo layout under /app, so code that locates files relative to the
 # repo root keeps working: /app/openapi.yaml (read by app/routers/docs.py) and
 # /app/frontend/dist (FRONTEND_DIST).
@@ -54,6 +55,11 @@ RUN sed -i 's/\r$//' /usr/local/bin/benchtrack-entrypoint \
     && chmod 0755 /usr/local/bin/benchtrack-entrypoint \
     && python -c "from app.routers.docs import CONTRACT_PATH as c; assert c.is_file(), c" \
     && python -c "from pathlib import Path; p = Path('$FRONTEND_DIST/index.html'); assert p.is_file(), p"
+
+# Reported by /api/health. Declared last so a new commit only rebuilds this layer. Empty
+# by default: the app then falls back to RENDER_GIT_COMMIT (set by Render), then "dev".
+ARG APP_VERSION=""
+ENV APP_VERSION=${APP_VERSION}
 
 USER benchtrack
 EXPOSE 8000

@@ -119,7 +119,7 @@ Answers to the open questions raised during spec review. Where this section is m
 19. **Error format** — every error uses `{"error": {"code": "<snake_case>", "message": "<human readable>", "details": <optional>}}` (e.g. `invalid_transition`, `not_found`, `unauthorized`, `validation_error`, `rate_limited`, `conflict`).
 20. **Lists** — `limit` (default 50, max 200) + `offset`; response `{ "items": [...], "total": n }`. Tickets sorted by `created_at` desc; customers by `name` asc. Search `q` = case-insensitive substring match.
 21. **Dashboard** — counts for **all 7 statuses**; stale = open ticket with `updated_at` older than 7 × 24 h (strictly greater). All timestamps stored and returned in **UTC** (ISO 8601 with `Z`); the UI shows browser local time.
-22. **Health** — `GET /api/health` → `200 {"status": "ok", "database": "ok"}`; if the DB check (`SELECT 1`) fails → `503 {"status": "degraded", "database": "error"}`.
+22. **Health** — `GET /api/health` → `200 {"status": "ok", "database": "ok", "version": "<commit>"}`; if the DB check (`SELECT 1`) fails → `503 {"status": "degraded", "database": "error", "version": "<commit>"}`. `version` is `APP_VERSION`, else `RENDER_GIT_COMMIT`, else `dev`, so CD can verify which commit is live (added 2026-10-21).
 
 ### UI and operations
 23. **Public routes** — `/track` (form) and `/track/:code` (pre-filled, auto-lookup). QR codes are out of scope for v1.

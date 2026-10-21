@@ -137,6 +137,7 @@ jobs:
           --health-retries 10
     env:
       IMAGE: benchtrack:ci
+      EXPECTED_VERSION: ${{ github.sha }}
       BASE_URL: http://127.0.0.1:8000
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -149,6 +150,8 @@ jobs:
           load: true
           push: false
           tags: ${{ env.IMAGE }}
+          build-args: |
+            APP_VERSION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Start the container
@@ -171,7 +174,10 @@ jobs:
       - name: Smoke test
         run: |
           set -eu
-          curl -fsS "$BASE_URL/api/health" | grep -q '"status":"ok"'
+          health=$(curl -fsS "$BASE_URL/api/health")
+          echo "$health"
+          test "$(printf '%s' "$health" | jq -r .status)" = ok
+          test "$(printf '%s' "$health" | jq -r .version)" = "$EXPECTED_VERSION"
           curl -fsS "$BASE_URL/" | grep -q '<div id="root">'
           curl -fsS "$BASE_URL/track/BT-AAAAA" | grep -q '<div id="root">'
           test "$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/api/nope")" = 404

@@ -49,6 +49,9 @@ def app(clock: FakeClock, log_stream: io.StringIO) -> Iterator[FastAPI]:
         database_url="sqlite://",
         log_level="INFO",
         log_format="json",
+        # Explicit, so an APP_VERSION/RENDER_GIT_COMMIT in the shell cannot leak in: "dev".
+        app_version=None,
+        render_git_commit=None,
     )
     # One shared connection, so every session sees the same in-memory database.
     engine = create_db_engine("sqlite://", poolclass=StaticPool)
