@@ -226,6 +226,8 @@ jobs:
           done
       - name: Sync script tests (stdlib unittest)
         run: python3 -m unittest discover -s plugins/tests -v
+      - name: Repo script tests (stdlib unittest)
+        run: python3 -m unittest discover -s scripts/tests -v
       - name: Plugin and .claude/ copies match their sources
         run: python3 plugins/sync_plugin.py --check
       - name: Lint agent pack and scripts, MCP server tests

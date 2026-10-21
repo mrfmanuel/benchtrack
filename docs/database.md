@@ -20,7 +20,8 @@ BenchTrack uses SQLAlchemy 2.x with engine-agnostic models (`backend/app/models.
 |---|---|---|
 | `DATABASE_URL` | app, Alembic, seed | `sqlite:///./benchtrack.db` · `postgresql+psycopg://benchtrack:benchtrack@127.0.0.1:5433/benchtrack` |
 | `TEST_DATABASE_URL` | integration tests only | `postgresql+psycopg://benchtrack:benchtrack@127.0.0.1:5433/benchtrack_test` |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` / `POSTGRES_PORT` | `docker-compose.yml` | `benchtrack` / `benchtrack` / `benchtrack` / `5433` |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `docker-compose.yml` | `benchtrack` / `benchtrack` / `benchtrack` |
+| `DB_PORT` | `docker-compose.yml`: host port on `127.0.0.1` (fallback: the older `POSTGRES_PORT`) | `5433`; change it if the port is taken, and use the same port in the URLs above |
 
 - `postgres://` and `postgresql://` URLs (as handed out by hosting platforms) are rewritten to `postgresql+psycopg://` (psycopg 3) by `app.config.normalize_database_url`, for the app and Alembic alike.
 - Alembic and the seed script only need `DATABASE_URL` (`DatabaseSettings`); the app additionally needs `STAFF_TOKEN`.
@@ -30,7 +31,7 @@ BenchTrack uses SQLAlchemy 2.x with engine-agnostic models (`backend/app/models.
 ## Local PostgreSQL (Docker Compose)
 
 ```powershell
-docker compose up -d db --wait      # postgres:16-alpine on 127.0.0.1:5433, named volume pgdata
+docker compose up -d db --wait      # postgres:16-alpine on 127.0.0.1:5433 (DB_PORT), named volume pgdata
 docker compose ps                   # STATUS should be "healthy" (pg_isready)
 docker compose stop db              # keep data
 docker compose down -v              # remove container AND data volume (destructive)

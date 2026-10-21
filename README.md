@@ -5,7 +5,7 @@
 
 A repair-ticket tracker for one small computer-repair shop: a staff area for customers, tickets and a status workflow, and a public page where customers check their repair with the code on their receipt.
 
-**Live demo:** https://benchtrack.onrender.com · **API docs:** https://benchtrack.onrender.com/docs
+**Live demo:** https://benchtrack.onrender.com · **API docs:** https://benchtrack.onrender.com/docs · **Task tracker:** [GitHub Issues](https://github.com/mrfmanuel/benchtrack/issues)
 
 ## Contents
 
@@ -24,7 +24,7 @@ Small independent computer-repair shops (one technician, a bench, a WhatsApp num
 - **Staff area** (protected by a staff token): register customers and repair tickets, move tickets through a fixed status workflow with a timeline, add internal notes, print a receipt with a tracking code, and see a dashboard of open and stale work.
 - **Public tracking page** (no login): the customer types the code from the receipt, e.g. `BT-7K3QX`, and sees the current status and its history. It never shows personal data, notes, costs or internal IDs.
 
-The full scope, acceptance scenarios and every decision taken during development are in [`product-spec.md`](product-spec.md) (§9 "Clarifications and decisions" wins over §1–8).
+The full scope, acceptance scenarios and every decision taken during development are in [`product-spec.md`](product-spec.md) (§9 "Clarifications and decisions" wins over §1–8). Open work is tracked as [GitHub Issues](https://github.com/mrfmanuel/benchtrack/issues) with acceptance criteria; the tracker started on 2026-10-21, and earlier work is logged step by step in [`docs/ai-workflow.md`](docs/ai-workflow.md).
 
 ## Live demo
 
@@ -127,7 +127,7 @@ The first command builds the image, starts PostgreSQL and the app, runs the migr
 - **API docs:** http://localhost:8000/docs · **health:** http://localhost:8000/api/health
 
 Notes:
-- Port 8000 busy? Set `APP_PORT=8010` in `.env`, run `docker compose up -d --wait` again and use port 8010.
+- **Port busy?** The app uses host port 8000 and PostgreSQL 5433, so another app or another Compose stack can already hold them. Set `APP_PORT` (e.g. `8010`) and/or `DB_PORT` (e.g. `5434`) in `.env`, run `docker compose up -d --wait` again, and use the new app port in the browser. If you change `DB_PORT`, use the same port in `TEST_DATABASE_URL` for the integration tests.
 - The app and the database are published on `127.0.0.1` only, not on your network.
 - `docker compose logs -f app` shows JSON logs. `docker compose down` keeps the data in the `pgdata` volume; `docker compose down -v` deletes it.
 
@@ -165,6 +165,7 @@ Open http://localhost:5173 and sign in with your `STAFF_TOKEN`.
 | `CLIENT_IP_HEADER` | Header the edge proxy overwrites with the client IP, for the public rate limit (Render: `CF-Connecting-IP`). Never `X-Forwarded-For` (refused). | TCP peer |
 | `APP_VERSION` | Version shown by `/api/health`; falls back to `RENDER_GIT_COMMIT`, then `dev`. | `dev` |
 | `APP_PORT` | Compose only: host port for the app. | `8000` |
+| `DB_PORT` | Compose only: host port for PostgreSQL (`127.0.0.1`). | `5433` |
 | `VITE_SHOP_NAME` | Build-time shop name for the header and receipts. | `BenchTrack Repair` |
 | `FRONTEND_DIST` | Built SPA directory served by FastAPI (set in the image). | — |
 | `TEST_DATABASE_URL` | PostgreSQL database for integration tests; its name must end in `_test`. | — |
@@ -208,7 +209,7 @@ export TEST_DATABASE_URL="postgresql+psycopg://benchtrack:benchtrack@127.0.0.1:5
 uv run pytest -m integration
 ```
 
-(Or put `TEST_DATABASE_URL` in `.env`.) The test pyramid, what each layer covers and the CI jobs are in [`docs/testing.md`](docs/testing.md).
+(Or put `TEST_DATABASE_URL` in `.env`. Replace `5433` if you set `DB_PORT`.) The test pyramid, what each layer covers and the CI jobs are in [`docs/testing.md`](docs/testing.md).
 
 ## CI/CD and deployment
 
@@ -232,7 +233,7 @@ Render setup, environment variables, free-tier limits and troubleshooting: [`doc
 BenchTrack was built with **Claude Code** as the coding agent and a human maintainer reviewing, testing and approving every step. [`docs/ai-workflow.md`](docs/ai-workflow.md) logs each step: the prompt, what was delegated, the manual review and how it was verified.
 
 - **Context files:** [`AGENTS.md`](AGENTS.md) (rules for all agents; [`CLAUDE.md`](CLAUDE.md) points to it), [`product-spec.md`](product-spec.md), [`openapi.yaml`](openapi.yaml).
-- **Process:** spec first → spec review by the agent (open questions answered in spec §9) → contract → test-first backend → frontend → containers → CI/CD → production → audits. One commit per task, tests with every change.
+- **Process:** spec first → spec review by the agent (open questions answered in spec §9) → contract → test-first backend → frontend → containers → CI/CD → production → audits. One commit per task, tests with every change. Since 2026-10-21 every change starts from an [issue](https://github.com/mrfmanuel/benchtrack/issues); its PR says `Closes #N` and ticks the acceptance criteria with evidence.
 - **Agent team:** the human maintainer, a planner/reviewer agent (Claude in Cowork), the implementer (Claude Code) and a read-only `contract-reviewer` subagent. Roles, hand-offs and rules are in [`docs/agent-team.md`](docs/agent-team.md).
 - **Who did what:** the agents wrote code, tests and docs. The human made the product decisions, ran and checked the app, set up accounts and secrets, approved production actions and merged. Production actions needed an explicit "yes".
 - **AI tools:** Claude Code CLI, Claude in Chrome for UI checks and read-only production diagnosis, and a read-only MCP server for the API (see below). Data rules: [`security/ai-tool-data-policy.md`](security/ai-tool-data-policy.md).
@@ -281,8 +282,8 @@ They load automatically in a Claude Code session started in the repo. Details an
 - **One staff role, one shared token**, stored in the browser's localStorage. There are no user accounts, roles or audit trail of who changed what (by design for v1, spec §5).
 - **The rate limit is in memory**, so it only works with a single instance (v1 runs one).
 - **Free hosting:** about 1 minute of cold start after idle time, and the free Render PostgreSQL expires about 30 days after creation unless upgraded ([deployment](docs/deployment.md#free-tier-limits)).
-- **One environment:** CD deploys straight to production after green CI. There is no staging environment or manual promotion step.
-- **Observability is logs only:** structured JSON logs and a health check, but no metrics, traces, alerting or on-call automation.
+- **One environment:** CD deploys straight to production after green CI. There is no staging environment or manual promotion step ([#11](https://github.com/mrfmanuel/benchtrack/issues/11)).
+- **Observability is logs only:** structured JSON logs and a health check, but no metrics or traces ([#10](https://github.com/mrfmanuel/benchtrack/issues/10)), no alerting ([#7](https://github.com/mrfmanuel/benchtrack/issues/7)) and no on-call automation ([#9](https://github.com/mrfmanuel/benchtrack/issues/9)).
 - **No notifications:** customers aren't told by SMS, email or WhatsApp; they check the tracking page. QR codes on receipts are out of scope.
-- **Public progress bar:** the stepper on the tracking page marks every step before the current one as done, even a step the repair skipped. For example, a ticket that went diagnosing → repairing shows "Waiting for parts" as done. The history list below it is exact.
+- **Public progress bar:** the stepper on the tracking page marks every step before the current one as done, even a step the repair skipped. For example, a ticket that went diagnosing → repairing shows "Waiting for parts" as done. The history list below it is exact ([#6](https://github.com/mrfmanuel/benchtrack/issues/6)).
 - **English UI only**, currency fixed to CRC (₡).

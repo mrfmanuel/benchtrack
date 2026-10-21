@@ -6,7 +6,8 @@
 
 1. Starts the Compose PostgreSQL (`docker compose up -d db --wait`) for the integration tests.
 2. Backend: unit + API + integration in one pytest run. Uses TEST_DATABASE_URL if set, else
-   the Compose default `…@127.0.0.1:5433/benchtrack_test` (dropped and recreated by the tests).
+   the Compose default `…@127.0.0.1:<DB_PORT>/benchtrack_test` (dropped and recreated by the
+   tests); DB_PORT comes from the shell or .env like Compose reads it, default 5433.
 3. Frontend: Vitest (runs `npm ci` first if node_modules is missing).
 4. Agent pack: guard/ruff hook tests, sync-script tests, plugin/.claude copies in sync, MCP server.
 
@@ -25,7 +26,27 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_TEST_DB = "postgresql+psycopg://benchtrack:benchtrack@127.0.0.1:5433/benchtrack_test"
+DEFAULT_TEST_DB = "postgresql+psycopg://benchtrack:benchtrack@127.0.0.1:{port}/benchtrack_test"
+PORT_VARS = ("DB_PORT", "POSTGRES_PORT")  # same precedence as docker-compose.yml
+
+
+def db_port() -> str:
+    """Host port of the Compose PostgreSQL: shell environment first, then .env (like Compose).
+
+    Only the two port variables are read from .env; nothing else in it is touched.
+    """
+    from_env_file: dict[str, str] = {}
+    env_file = ROOT / ".env"
+    if env_file.is_file():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            key, sep, value = line.partition("=")
+            if sep and key.strip() in PORT_VARS:
+                from_env_file[key.strip()] = value.strip().strip("\"'")
+    for name in PORT_VARS:
+        for source in (os.environ, from_env_file):
+            if source.get(name):
+                return source[name]
+    return "5433"
 
 
 def tool(name: str) -> str:
@@ -62,7 +83,7 @@ def main() -> int:
         marker = "not integration"
     else:
         marker = "integration or not integration"
-        backend_env.setdefault("TEST_DATABASE_URL", DEFAULT_TEST_DB)
+        backend_env.setdefault("TEST_DATABASE_URL", DEFAULT_TEST_DB.format(port=db_port()))
         if not run(
             "PostgreSQL (Compose)",
             [tool("docker"), "compose", "up", "-d", "db", "--wait"],
@@ -85,6 +106,7 @@ def main() -> int:
 
     run("Agent hooks", [py, "-m", "unittest", "discover", "-s", "agent-hooks/tests"], ROOT)
     run("Sync script", [py, "-m", "unittest", "discover", "-s", "plugins/tests"], ROOT)
+    run("Scripts", [py, "-m", "unittest", "discover", "-s", "scripts/tests"], ROOT)
     run("Plugin and .claude/ copies", [py, "plugins/sync_plugin.py", "--check"], ROOT)
     mcp = ROOT / "mcp-server"
     # Once the venv exists, don't re-sync it: a Claude Code session using the project's MCP

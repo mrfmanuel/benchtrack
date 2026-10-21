@@ -14,7 +14,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-benchtrack}
     ports:
       # Loopback only, and 5433 to avoid clashing with a locally installed PostgreSQL.
-      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+      # DB_PORT changes it (e.g. when another Compose stack already uses 5433); the older
+      # POSTGRES_PORT still works as a fallback.
+      - "127.0.0.1:${DB_PORT:-${POSTGRES_PORT:-5433}}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

@@ -160,7 +160,7 @@ CI fails if the contract doesn't lint or if an operation, operationId or success
 - **Runtime hardening:** the container runs as a non-root user (uid 10001), and setuid/setgid bits are stripped. `APP_VERSION` is declared last, so a new commit SHA rebuilds only that layer.
 - **`docker/entrypoint.sh`:** runs `alembic upgrade head`, then `exec uvicorn … --no-proxy-headers` on `$PORT`.
 - **Health check:** `docker/healthcheck.py` (stdlib `http.client`) calls `/api/health`; Docker, Compose and Render all use it.
-- **`docker-compose.yml`:** a `db` service (PostgreSQL 16, `pgdata` volume, `127.0.0.1:5433`) and an `app` service that waits for `db` to be healthy, sets `DATABASE_URL` to `db`, uses JSON logs and `no-new-privileges`, and publishes on `127.0.0.1:${APP_PORT:-8000}`.
+- **`docker-compose.yml`:** a `db` service (PostgreSQL 16, `pgdata` volume, `127.0.0.1:${DB_PORT:-5433}`) and an `app` service that waits for `db` to be healthy, sets `DATABASE_URL` to `db`, uses JSON logs and `no-new-privileges`, and publishes on `127.0.0.1:${APP_PORT:-8000}`.
 
 ## 8. CI/CD and Render
 

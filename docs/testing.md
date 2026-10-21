@@ -25,7 +25,7 @@ From the repo root, on Windows PowerShell, Linux or macOS (needs uv, Node.js and
 uv run --no-project python scripts/test_all.py
 ```
 
-[`scripts/test_all.py`](../scripts/test_all.py) starts the Compose PostgreSQL, then runs the backend unit, API and integration tests in **one** pytest run (559), Vitest (136), the hook tests, the sync-script tests and drift check, and the MCP server tests. It prints a PASS/FAIL summary and exits non-zero on any failure. With `--skip-integration` it needs no Docker. It uses `TEST_DATABASE_URL` if set, else the Compose default `…@127.0.0.1:5433/benchtrack_test`. The sections below run each layer on its own.
+[`scripts/test_all.py`](../scripts/test_all.py) starts the Compose PostgreSQL, then runs the backend unit, API and integration tests in **one** pytest run (559), Vitest (136), the hook tests, the sync-script tests and drift check, and the MCP server tests. It prints a PASS/FAIL summary and exits non-zero on any failure. With `--skip-integration` it needs no Docker. It uses `TEST_DATABASE_URL` if set, else the Compose default `…@127.0.0.1:<DB_PORT>/benchtrack_test` (`DB_PORT` from the shell or `.env`, default 5433). The sections below run each layer on its own.
 
 | Layer | Where | Tests | Command | Needs |
 |---|---|---:|---|---|
@@ -39,6 +39,7 @@ uv run --no-project python scripts/test_all.py
 | Agent hooks (guard, ruff hook) | `agent-hooks/tests/` | 35 (plus sub-cases) | `python -m unittest discover -s agent-hooks/tests` | Python 3.12 (stdlib) |
 | MCP server | `mcp-server/tests/` | 25 | `cd mcp-server && uv run pytest -q` | nothing (mocked API) |
 | Agent pack sync (plugin and `.claude/` copies) | `plugins/tests/` | 9 | `python -m unittest discover -s plugins/tests`, then `python plugins/sync_plugin.py --check` | nothing |
+| Repo scripts (`test_all.py` helpers) | `scripts/tests/` | 6 | `python -m unittest discover -s scripts/tests` | nothing |
 | Docker smoke | `ci.yml` job `docker` | — | see [below](#docker-image) | Docker |
 
 Backend commands run from `backend/`, frontend commands from `frontend/`, Redocly from the repo root.
@@ -71,7 +72,7 @@ Loads `openapi.yaml` and compares it with the routes FastAPI actually registers:
 
 Real PostgreSQL: `alembic upgrade head` on an empty database, constraint naming, **no autogenerate drift** between models and migrations, downgrade to base and upgrade again, and the key HTTP workflows (full ticket lifecycle with timeline, invalid transition 409, public whitelist, duplicate phone 409, stale detection, case-insensitive search). Marked `integration`, so the default run skips them.
 
-1. Start the Compose PostgreSQL (published on `127.0.0.1:5433`):
+1. Start the Compose PostgreSQL (published on `127.0.0.1:5433`, or `DB_PORT` if set):
 
    ```powershell
    docker compose up -d db --wait
@@ -84,7 +85,7 @@ Real PostgreSQL: `alembic upgrade head` on an empty database, constraint naming,
    uv run pytest -m integration          # 10 passed, 549 deselected
    ```
 
-   Use `127.0.0.1`, not `localhost` (see the Windows note in [`database.md`](database.md)). `TEST_DATABASE_URL` can also live in `.env`.
+   Use `127.0.0.1`, not `localhost` (see the Windows note in [`database.md`](database.md)), and your `DB_PORT` instead of `5433` if you changed it. `TEST_DATABASE_URL` can also live in `.env`.
 
 Without `TEST_DATABASE_URL` the integration tests are **skipped**, not failed. CI therefore fails the `integration` job if any test is skipped.
 
@@ -153,7 +154,7 @@ docker run --rm -v "${PWD}:/repo" -w /repo rhysd/actionlint:1.7.12
 | `integration` | `postgres:16` service, `TEST_DATABASE_URL`, `uv run pytest -m integration` (fails on skips) |
 | `frontend` | Node 24, `npm ci`, lint, test, build |
 | `docker` | image build (GitHub Actions cache) + smoke test against PostgreSQL |
-| `agent-pack` | guard + ruff hook unit tests, JSON validity of agent configs, sync script tests, plugin and `.claude/` copies in sync, MCP server ruff + tests |
+| `agent-pack` | guard + ruff hook unit tests, JSON validity of agent configs, sync script and repo script tests, plugin and `.claude/` copies in sync, MCP server ruff + tests |
 | `semgrep` | `semgrep scan --config auto --error`; SARIF and JSON uploaded as the `semgrep-results` artifact |
 
 `cd.yml` deploys only after a successful CI run for a push to `main`, then polls `/api/health` (up to ~10 minutes) until `status` is `ok` and `version` equals the commit CI tested.
