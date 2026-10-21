@@ -33,6 +33,8 @@ services:
         APP_VERSION: ${APP_VERSION:-}
     image: benchtrack:local
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true  # no process in the container can gain privileges
     depends_on:
       db:
         condition: service_healthy

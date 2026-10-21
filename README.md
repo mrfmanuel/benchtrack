@@ -102,5 +102,7 @@ Tests: see [`docs/testing.md`](docs/testing.md) for every layer, its command and
 - [`docs/database.md`](docs/database.md) — database environments, migrations, seeding, ER diagram
 - [`docs/testing.md`](docs/testing.md) — test pyramid, commands and counts, CI jobs
 - [`docs/deployment.md`](docs/deployment.md) — Render setup, free-tier limits, deploy troubleshooting
+- [`ops/runbook.md`](ops/runbook.md) — start/stop, health and version, logs, deploy and rollback, seeding, token rotation
 - [`ops/incidents/`](ops/incidents/) — incident reports
+- [`security/`](security/README.md) — PR audit, scans and triage, agent security notes, AI tool and data policy
 - [`docs/ai-workflow.md`](docs/ai-workflow.md) — AI-assisted development log

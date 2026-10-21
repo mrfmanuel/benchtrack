@@ -80,6 +80,8 @@ Instructions for AI coding agents (and human contributors) working in this repos
 - The image mirrors the repo layout under `/app` (`/app/backend`, `/app/openapi.yaml`, `/app/frontend/dist`); the build fails if the contract or `index.html` is not where the app reads it. `docker/entrypoint.sh` runs `alembic upgrade head`, then uvicorn on `$PORT` with proxy headers. It runs as the non-root user `benchtrack`.
 - SPA serving (`app/spa.py`, enabled by `FRONTEND_DIST`) is a 404 fallback: GET requests for unknown non-`/api`, non-`/assets` paths get `index.html`; `/api/*` keeps the JSON error envelope. Add API routes under `/api` only.
 - Shell scripts and the Dockerfile must stay LF (`.gitattributes`).
+- The runtime image has no setuid/setgid binaries (the build fails if any remain) and Compose runs the app with `no-new-privileges`. Don't add packages or tools that need privileges.
+- Operations (start/stop, logs, deploy, rollback, token rotation): [`ops/runbook.md`](ops/runbook.md). Security artifacts and the AI tool/data policy: [`security/README.md`](security/README.md). Agents never merge to `main`, and production actions need an explicit human "yes".
 - CI (`.github/workflows/ci.yml`) must stay green; CD (`cd.yml`) deploys only after CI succeeds on `main`. Test layers, commands and counts: [`docs/testing.md`](docs/testing.md) — update the counts when adding tests. Pin new actions to a commit SHA, keep `permissions: contents: read`, pass secrets via `env:` and never echo them; lint workflows with actionlint.
 
 ## Don'ts

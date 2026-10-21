@@ -36,8 +36,13 @@ ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     FRONTEND_DIST=/app/frontend/dist \
     PORT=8000
+# Non-root user, and no setuid/setgid binaries: the base image ships su, mount, umount,
+# passwd... (util-linux/shadow), which the app never needs. Stripping the bits removes the
+# privilege-escalation path for the unfixed util-linux CVEs (see security/scan-findings.md).
 RUN groupadd --system --gid 10001 benchtrack \
-    && useradd --system --uid 10001 --gid benchtrack --no-create-home benchtrack
+    && useradd --system --uid 10001 --gid benchtrack --no-create-home benchtrack \
+    && find / -xdev -perm /6000 -type f -exec chmod a-s {} + \
+    && test -z "$(find / -xdev -perm /6000 -type f)"
 WORKDIR /app/backend
 
 COPY --from=backend /app/.venv /app/.venv
