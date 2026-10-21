@@ -224,7 +224,9 @@ jobs:
                    plugins/benchtrack-dev/hooks/hooks.json plugins/benchtrack-dev/.mcp.json; do
             python3 -m json.tool "$f" > /dev/null && echo "ok: $f"
           done
-      - name: Plugin copy matches its sources
+      - name: Sync script tests (stdlib unittest)
+        run: python3 -m unittest discover -s plugins/tests -v
+      - name: Plugin and .claude/ copies match their sources
         run: python3 plugins/sync_plugin.py --check
       - name: MCP server lint and tests
         working-directory: mcp-server

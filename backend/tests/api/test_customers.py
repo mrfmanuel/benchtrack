@@ -25,6 +25,53 @@ def test_duplicate_phone_returns_409_conflict(client):
     assert error["details"] == {"field": "phone", "existing_customer_id": first["id"]}
 
 
+def test_duplicate_phone_race_still_reports_existing_customer_id(client, monkeypatch):
+    """Two requests pass the pre-check at once: the unique constraint decides (spec §9.1)."""
+    from app.services import customers as service
+
+    first = make_customer(client, phone="+50688001234")
+    real_lookup = service._id_with_phone
+    calls = []
+
+    def lookup(session, phone):
+        calls.append(phone)
+        # The pre-check runs before the other request commits; later lookups see its row.
+        return None if len(calls) == 1 else real_lookup(session, phone)
+
+    monkeypatch.setattr(service, "_id_with_phone", lookup)
+    response = client.post("/api/customers", json={"name": "Other", "phone": "+50688001234"})
+    error = assert_error(response, 409, "conflict")
+    assert error["details"] == {"field": "phone", "existing_customer_id": first["id"]}
+    assert len(calls) == 2
+
+
+def test_integrity_error_without_a_matching_phone_is_not_reported_as_a_conflict(
+    app, client, monkeypatch
+):
+    from fastapi.testclient import TestClient
+    from sqlalchemy.exc import IntegrityError
+
+    from app.services import customers as service
+
+    make_customer(client, phone="+50688001234")
+    monkeypatch.setattr(service, "_id_with_phone", lambda session, phone: None)
+    with pytest.raises(IntegrityError):
+        client.post("/api/customers", json={"name": "Other", "phone": "+50688001234"})
+    with TestClient(app, raise_server_exceptions=False, headers=client.headers) as quiet:
+        response = quiet.post("/api/customers", json={"name": "Other", "phone": "+50688001234"})
+    assert_error(response, 500, "internal_error")
+
+
+@pytest.mark.parametrize("bad_id", ["0", "-1"])
+def test_customer_id_below_1_is_a_validation_error(client, bad_id):
+    for response in (
+        client.get(f"/api/customers/{bad_id}"),
+        client.patch(f"/api/customers/{bad_id}", json={"name": "X"}),
+    ):
+        error = assert_error(response, 422, "validation_error")
+        assert error["details"][0]["field"] == "customer_id"
+
+
 @pytest.mark.parametrize(
     ("body", "field"),
     [
@@ -44,6 +91,28 @@ def test_create_validation_errors(client, body, field):
     error = assert_error(client.post("/api/customers", json=body), 422, "validation_error")
     assert field in [d["field"] for d in error["details"]]
     assert all(set(d) == {"field", "message"} for d in error["details"])
+
+
+def _email_of_length(length: int) -> str:
+    # 64-character local part, then 63-character labels: valid shape at any length used here.
+    domain_len = length - 65
+    labels = ["d" * 63] * (domain_len // 64)
+    labels.append("d" * (domain_len - 64 * len(labels) - 4) + ".com")
+    email = "a" * 64 + "@" + ".".join(labels)
+    assert len(email) == length
+    return email
+
+
+def test_email_max_length_is_254(client):
+    ok = client.post(
+        "/api/customers", json={"name": "Ana", "phone": "88001234", "email": _email_of_length(254)}
+    )
+    assert ok.status_code == 201, ok.text
+    too_long = client.post(
+        "/api/customers", json={"name": "Ana", "phone": "88001235", "email": _email_of_length(255)}
+    )
+    error = assert_error(too_long, 422, "validation_error")
+    assert [d["field"] for d in error["details"]] == ["email"]
 
 
 def test_phone_error_message_is_readable(client):

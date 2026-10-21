@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import Depends, Query, Request
+from fastapi import Depends, Path, Query, Request
 from sqlalchemy.orm import Session
 
 from app.db import get_session
@@ -15,6 +15,11 @@ QueryParam = Annotated[
 ]
 LimitParam = Annotated[int, Query(ge=1, le=200)]
 OffsetParam = Annotated[int, Query(ge=0)]
+# Path IDs: `minimum: 1` in the contract, so 0 or a negative ID is a 422, not a 404.
+CustomerIdPath = Annotated[int, Path(ge=1)]
+TicketIdPath = Annotated[int, Path(ge=1)]
+# As typed by the customer (normalized by the service); `maxLength: 20` in the contract.
+TrackingCodePath = Annotated[str, Path(min_length=1, max_length=20)]
 
 
 def public_rate_limit(request: Request) -> None:

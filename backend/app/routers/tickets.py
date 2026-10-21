@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app import schemas
 from app.auth import require_staff
-from app.deps import LimitParam, OffsetParam, QueryParam, SessionDep
+from app.deps import LimitParam, OffsetParam, QueryParam, SessionDep, TicketIdPath
 from app.services import tickets as service
 from app.services.transitions import TicketStatus
 
@@ -32,19 +32,19 @@ def create_ticket(data: schemas.TicketCreate, session: SessionDep):
 
 
 @router.get("/{ticket_id}", response_model=schemas.Ticket, operation_id="getTicket")
-def get_ticket(ticket_id: int, session: SessionDep):
+def get_ticket(ticket_id: TicketIdPath, session: SessionDep):
     return service.get_ticket(session, ticket_id)
 
 
 @router.patch("/{ticket_id}", response_model=schemas.Ticket, operation_id="updateTicket")
-def update_ticket(ticket_id: int, data: schemas.TicketUpdate, session: SessionDep):
+def update_ticket(ticket_id: TicketIdPath, data: schemas.TicketUpdate, session: SessionDep):
     return service.update_ticket(session, ticket_id, data)
 
 
 @router.post(
     "/{ticket_id}/status", response_model=schemas.Ticket, operation_id="changeTicketStatus"
 )
-def change_status(ticket_id: int, data: schemas.StatusChange, session: SessionDep):
+def change_status(ticket_id: TicketIdPath, data: schemas.StatusChange, session: SessionDep):
     return service.change_status(session, ticket_id, data)
 
 
@@ -54,13 +54,13 @@ def change_status(ticket_id: int, data: schemas.StatusChange, session: SessionDe
     status_code=201,
     operation_id="addTicketNote",
 )
-def add_note(ticket_id: int, data: schemas.NoteCreate, session: SessionDep):
+def add_note(ticket_id: TicketIdPath, data: schemas.NoteCreate, session: SessionDep):
     return service.add_note(session, ticket_id, data)
 
 
 @router.get(
     "/{ticket_id}/events", response_model=schemas.TicketEventList, operation_id="listTicketEvents"
 )
-def list_events(ticket_id: int, session: SessionDep):
+def list_events(ticket_id: TicketIdPath, session: SessionDep):
     events = service.list_events(session, ticket_id)
     return {"items": events, "total": len(events)}

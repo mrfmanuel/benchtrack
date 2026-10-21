@@ -13,10 +13,8 @@ from app.models import Customer
 _PHONE_SEPARATORS_RE = re.compile(r"[\s\-()]")
 
 
-def _duplicate_phone(phone: str, existing_id: int | None) -> ConflictError:
-    details: dict[str, object] = {"field": "phone"}
-    if existing_id is not None:
-        details["existing_customer_id"] = existing_id
+def _duplicate_phone(phone: str, existing_id: int) -> ConflictError:
+    details = {"field": "phone", "existing_customer_id": existing_id}
     return ConflictError(f"A customer with phone {phone} already exists.", details)
 
 
@@ -78,4 +76,10 @@ def _commit_or_conflict(session: Session, phone: str) -> None:
         session.commit()
     except IntegrityError as exc:
         session.rollback()
-        raise _duplicate_phone(phone, None) from exc
+        # Another request committed the same phone first; report its ID like the pre-check.
+        existing_id = _id_with_phone(session, phone)
+        if existing_id is None:
+            # No customer has the phone (there are no deletes in v1), so this was some other
+            # integrity failure: let it surface as a 500 instead of a misleading conflict.
+            raise
+        raise _duplicate_phone(phone, existing_id) from exc

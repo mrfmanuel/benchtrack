@@ -92,6 +92,8 @@ interface RequestOptions {
   auth?: boolean;
   /** Override the stored token (sign-in validates a token before saving it). */
   token?: string;
+  /** Non-2xx statuses whose body is a normal response (the health check's `503`). */
+  bodyStatuses?: number[];
 }
 
 function isErrorEnvelope(value: unknown): value is { error: { code: string; message: string; details?: unknown } } {
@@ -134,7 +136,7 @@ async function toApiError(response: Response): Promise<ApiError> {
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, query, auth = true } = options;
+  const { method = 'GET', body, query, auth = true, bodyStatuses = [] } = options;
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (auth) {
@@ -153,7 +155,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     throw new ApiError(0, 'network_error', 'Cannot reach the server. Check your connection.');
   }
 
-  if (!response.ok) {
+  if (!response.ok && !bodyStatuses.includes(response.status)) {
     const error = await toApiError(response);
     if (response.status === 401 && auth) {
       clearToken();
@@ -167,7 +169,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 // --- Endpoints (one per operationId in openapi.yaml) ---
 
 export const api = {
-  getHealth: () => request<Health>('/health', { auth: false }),
+  // `503` carries a `Health` body (`status: degraded`), not the error envelope.
+  getHealth: () => request<Health>('/health', { auth: false, bodyStatuses: [503] }),
 
   listCustomers: (params: CustomerListParams = {}) =>
     request<CustomerList>('/customers', { query: { ...params } }),

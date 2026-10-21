@@ -10,8 +10,8 @@ Claude Code extensions that make AI agents work the BenchTrack way and keep them
 | PreToolUse guard | [`agent-hooks/guard.py`](../agent-hooks/guard.py) | Blocks reading or editing `.env*` (except `.env.example`), `rm -rf`, force pushes, pushes to `main`, `git reset --hard`, `DROP TABLE`/`TRUNCATE`, `docker system prune`/`volume rm`, and commands that print secrets, each with a clear reason. Stdlib only, any OS; fails closed |
 | PostToolUse ruff hook | [`agent-hooks/ruff_check.py`](../agent-hooks/ruff_check.py) | After the agent edits a `.py` file, runs `ruff check` with the backend's locked ruff and feeds problems back to the agent |
 | MCP server `benchtrack` | [`mcp-server/`](../mcp-server/README.md) | Read-only tools `health`, `dashboard`, `list_tickets(status?, q?)`, `get_ticket(id)`, `track(code)` over the BenchTrack API. Token from env, never logged or returned, a timeout on every call, GET only, no write tools |
-| Plugin `benchtrack-dev` | [`plugins/benchtrack-dev/`](../plugins/benchtrack-dev/) | Packages all of the above (`.claude-plugin/plugin.json`, `skills/`, `agents/`, `hooks/hooks.json`, `.mcp.json`). Self-contained copies kept in sync by [`plugins/sync_plugin.py`](../plugins/sync_plugin.py); CI fails on drift |
-| Repo wiring | [`.claude/settings.json`](../.claude/settings.json), [`.mcp.json`](../.mcp.json) | Hooks, plus allow/ask/deny permission rules for every Claude Code session in this repo; the MCP server with `${BENCHTRACK_URL}`/`${BENCHTRACK_TOKEN}` env expansion (no literal values) |
+| Plugin `benchtrack-dev` | [`plugins/benchtrack-dev/`](../plugins/benchtrack-dev/) | Packages all of the above (`.claude-plugin/plugin.json`, `skills/`, `agents/`, `hooks/hooks.json`, `.mcp.json`) for use outside this repo. Self-contained copies kept in sync by [`plugins/sync_plugin.py`](../plugins/sync_plugin.py); CI fails on drift |
+| Repo wiring | [`.claude/settings.json`](../.claude/settings.json), [`.mcp.json`](../.mcp.json), `.claude/skills/`, `.claude/agents/` | Hooks, plus allow/ask/deny permission rules for every Claude Code session in this repo; the MCP server with `${BENCHTRACK_URL}`/`${BENCHTRACK_TOKEN}` env expansion (no literal values); copies of the skills and the subagent, written by the same sync script |
 
 ## Install and use
 
@@ -27,31 +27,38 @@ claude
 
 Use it only against environments with fictional data: staff tools return customer names and phones, and whatever a tool returns goes to the AI provider ([AI policy](../security/ai-tool-data-policy.md)).
 
-**Skills and subagent** come with the plugin. Load it for a session, or install it:
+**Skills and subagent: two ways to get them.**
+
+| | Repo-scoped (default in this repo) | Plugin |
+|---|---|---|
+| How | Nothing to do: start Claude Code in the repo root. It loads `.claude/skills/` and `.claude/agents/` | `claude --plugin-dir plugins/benchtrack-dev` for one session, or install the plugin |
+| Names | `/contract-first-endpoint`, `/release-check`, subagent `contract-reviewer` | `/benchtrack-dev:contract-first-endpoint`, `/benchtrack-dev:release-check`, subagent `benchtrack-dev:contract-reviewer` |
+| Hooks and MCP server | From `.claude/settings.json` and `.mcp.json` | The plugin brings its own copies (in this repo they duplicate the project wiring; harmless, the guard runs twice with the same decision) |
+| Use when | Working in this repository | Outside this repository, or to try the packaged version |
+
+Examples:
+- `/contract-first-endpoint add a GET /api/tickets/{id}/receipt endpoint`
+- `/release-check` (user-invoked only)
+- "Use the contract-reviewer subagent to check for drift"
 
 ```bash
-claude --plugin-dir plugins/benchtrack-dev          # this session only
 claude plugin validate plugins/benchtrack-dev       # ✔ Validation passed (also with --strict)
 ```
 
-Then:
-- `/benchtrack-dev:contract-first-endpoint add a GET /api/tickets/{id}/receipt endpoint`
-- `/benchtrack-dev:release-check`
-- "Use the benchtrack-dev:contract-reviewer subagent to check for drift"
+The repo-scoped copies exist because of a live test finding: in a fresh session without the plugin, the subagent was not available ([evidence 6](#6-live-test-by-the-maintainer-contract-reviewer-missing-without-the-plugin)).
 
-The plugin also brings its own hooks and MCP server. In this repo they duplicate the project wiring, which is harmless: the guard runs twice and gives the same decision. Outside the repo, the plugin is the way to get them.
-
-**Changing a piece:** edit the source (left column), run `python plugins/sync_plugin.py`, and commit both. CI runs `python plugins/sync_plugin.py --check`.
+**Changing a piece:** edit the source (left column), run `python plugins/sync_plugin.py`, and commit the source and every copy (`plugins/benchtrack-dev/`, `.claude/skills/`, `.claude/agents/`). CI runs the script's tests and `python plugins/sync_plugin.py --check`, which fails on a missing, edited or extra copy. Don't edit the copies or add your own files under `.claude/skills/` or `.claude/agents/`: the script owns those folders.
 
 **Tests:**
 
 ```bash
 python -m unittest discover -s agent-hooks/tests     # guard + ruff hook (35 tests, many sub-cases)
 cd mcp-server && uv run pytest -q                    # MCP server, mocked API (25 tests)
-python plugins/sync_plugin.py --check                # plugin copy in sync
+python -m unittest discover -s plugins/tests         # sync script (9 tests)
+python plugins/sync_plugin.py --check                # plugin and .claude/ copies in sync
 ```
 
-All three run in the CI job `agent-pack`.
+All four run in the CI job `agent-pack`.
 
 ## Real example session (2026-10-21)
 
@@ -105,7 +112,7 @@ The report it returned (unchanged):
 
 > What I checked: 13 operations (method, path, operationId, success status, `auth: false` on exactly `getHealth` and `trackTicket`), 22 schemas, 9 parameters, 8 error codes. `PublicTracking` exposes no PII, notes or cost. Could not verify: … Spec note: product-spec.md §9.14 still describes X-Forwarded-For, which `deps.py` deliberately no longer uses.
 
-These are real findings; they are logged as follow-ups in the PR (contract/spec changes go through `contract-first-endpoint`, not this PR).
+These were real findings. They were logged as follow-ups in PR #3 and fixed on `fix/contract-drift` ([evidence 7](#7-contract-reviewer-by-name-without-the-plugin-after-the-drift-fixes)).
 
 ### 3. The MCP `dashboard` tool against the local Compose app
 
@@ -155,6 +162,55 @@ $ python plugins/sync_plugin.py && python plugins/sync_plugin.py --check
 Synced 12 files into plugins/benchtrack-dev/
 Plugin copy is in sync (12 files).
 ```
+
+(Output from Step 10. Since `fix/contract-drift` the script also writes `.claude/skills/` and `.claude/agents/`: 15 files, message *"Agent pack copies are in sync (15 files)."*)
+
+### 6. Live test by the maintainer: contract-reviewer missing without the plugin
+
+The maintainer tested the merged pack in a fresh interactive Claude Code session started in the repo root, **without** `--plugin-dir`:
+- The project's `benchtrack` MCP server was approved individually (not "all future servers").
+- Reading `.env` was blocked by the guard hook.
+- For `git push --force`, the agent **actually attempted** the push and the PreToolUse hook blocked it: the guardrail, not the model, stopped it.
+- Asked to run the contract-reviewer, the agent answered that it *isn't loaded … the benchtrack-dev plugin isn't loaded*, and fell back to an Explore agent with the same instructions. Explore is not limited to Read/Grep/Glob in the same way and doesn't carry the reviewer's report format, so the result was not the reviewer.
+
+**Cause:** the subagent and skills only existed in `agent-capabilities/` (not a location Claude Code loads) and inside the plugin. Evidence 2 above had passed only because it used `--plugin-dir`.
+
+**Fix:** `plugins/sync_plugin.py` now also copies the skills to `.claude/skills/` and the subagent to `.claude/agents/`, which Claude Code loads for every session in the repo; its `--check` (CI) covers those copies, with new tests in `plugins/tests/`.
+
+### 7. contract-reviewer by name, without the plugin, after the drift fixes
+
+`claude -p --output-format stream-json --verbose` in the repo root on `fix/contract-drift`, **no** `--plugin-dir`. Prompt: *"Use the contract-reviewer subagent (by that name) to check this repository for drift between openapi.yaml, the backend (backend/app) and the frontend API layer (frontend/src/api). Do not do the review yourself and do not use any other agent type. Return the subagent's report exactly as it gave it."*
+
+```text
+[init] session=1b9c01db-0529-4735-bfba-e29013ce973d model=claude-opus-5-5 permissionMode=default
+[init] agents=['claude', 'contract-reviewer', 'Explore', 'general-purpose', 'Plan', 'statusline-setup']
+[init] skills=['contract-first-endpoint', 'release-check', …]
+[tool_use] Agent {"subagent_type": "contract-reviewer", "description": "Contract drift review"}
+[tool calls] Agent 1, Read 21, Glob 2, Grep 3        ← only its allowed read-only tools
+[result] subtype=success turns=2 duration_ms=101549
+```
+
+Report (excerpt):
+
+> Contract drift: none found
+>
+> | # | Severity | Area | openapi.yaml | Backend | Frontend | Drift |
+> |---|---|---|---|---|---|---|
+> | - | - | - | - | - | - | No mismatches |
+>
+> Operations (14 of 14 match) · Schemas (23 of 23 match) · Parameters (7 of 7 match) · Errors (11 of 11 codes match)
+
+It listed three things it could not verify by reading only; all three are now covered by tests: over-long public codes still count toward the rate limit (`test_over_long_codes_still_count_toward_the_rate_limit`), timestamps end in `Z` (`test_create_normalizes_phone_and_returns_utc_timestamp`), and the 254-character email limit (`test_email_max_length_is_254`, added after this run because no test covered it).
+
+It took three fresh runs to get there; each one found something real:
+
+| Run | Result | Action |
+|---|---|---|
+| 1 (after fixing the 8 Step 10 findings) | 1 low: on the race path, `existing_customer_id` could still be missing if the lookup after rollback found nothing, although the contract now says it is always set | That case now re-raises the `IntegrityError` (→ `500 internal_error`) instead of sending a conflict without the ID; test added |
+| 2 | 1 low: the shared `NotFound` example said "Ticket not found." on customer and public routes | Per-resource examples (`Ticket 42 not found.`, `Customer 1 not found.`, `No repair found for this tracking code.`) |
+| 3 | None | — |
+
+Run 1 also miscounted ("12 of 12" operations while listing 14); run 3 counted 14 of 14. The reviewer is a model: its counts are a summary, not a test, which is why contract parity is also enforced by `backend/tests/api/test_contract.py`.
 
 ## Limits
 

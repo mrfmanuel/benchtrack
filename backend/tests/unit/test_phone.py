@@ -41,6 +41,9 @@ def test_normalizes_valid_numbers(raw, expected):
         "+",
         "---",
         "８８００１２３４",  # full-width digits are not ASCII digits
+        "8800\t1234",  # only spaces, dashes and parentheses are separators (contract pattern)
+        "8800\n1234",
+        "8800\u00a01234",
     ],
 )
 def test_rejects_invalid_numbers(raw):

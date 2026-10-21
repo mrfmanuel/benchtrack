@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 
 from app import schemas
 from app.auth import require_staff
-from app.deps import LimitParam, OffsetParam, QueryParam, SessionDep
+from app.deps import CustomerIdPath, LimitParam, OffsetParam, QueryParam, SessionDep
 from app.services import customers as service
 
 router = APIRouter(
@@ -24,10 +24,10 @@ def create_customer(data: schemas.CustomerCreate, session: SessionDep):
 
 
 @router.get("/{customer_id}", response_model=schemas.Customer, operation_id="getCustomer")
-def get_customer(customer_id: int, session: SessionDep):
+def get_customer(customer_id: CustomerIdPath, session: SessionDep):
     return service.get_customer(session, customer_id)
 
 
 @router.patch("/{customer_id}", response_model=schemas.Customer, operation_id="updateCustomer")
-def update_customer(customer_id: int, data: schemas.CustomerUpdate, session: SessionDep):
+def update_customer(customer_id: CustomerIdPath, data: schemas.CustomerUpdate, session: SessionDep):
     return service.update_customer(session, customer_id, data)

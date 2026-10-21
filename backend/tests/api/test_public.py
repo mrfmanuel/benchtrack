@@ -62,10 +62,21 @@ def test_lookup_normalization(client, anon, variant):
     assert response.json()["tracking_code"] == code
 
 
-@pytest.mark.parametrize("raw", ["BT-ZZZZZ", "BT7K3QX", "BT-0O1IL", "x" * 21, "%00", "BT-22222x"])
+@pytest.mark.parametrize("raw", ["BT-ZZZZZ", "BT7K3QX", "BT-0O1IL", "x" * 20, "%00", "BT-22222x"])
 def test_unknown_or_invalid_codes_return_404(anon, raw):
     error = assert_error(anon.get(f"/api/public/track/{raw}"), 404, "not_found")
     assert error["message"] == "No repair found for this tracking code."
+
+
+def test_code_longer_than_20_characters_is_a_validation_error(anon):
+    error = assert_error(anon.get(f"/api/public/track/{'x' * 21}"), 422, "validation_error")
+    assert error["details"][0]["field"] == "tracking_code"
+
+
+def test_over_long_codes_still_count_toward_the_rate_limit(anon):
+    for _ in range(10):
+        assert anon.get(f"/api/public/track/{'x' * 21}").status_code == 422
+    assert_error(anon.get("/api/public/track/BT-ZZZZZ"), 429, "rate_limited")
 
 
 def test_public_route_needs_no_token_and_ignores_a_wrong_one(client, anon):

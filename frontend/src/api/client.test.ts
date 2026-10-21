@@ -193,9 +193,19 @@ describe('error envelope parsing', () => {
     expect(error.status).toBe(502);
     expect(error.code).toBe('http_error');
     expect(error.message).toBe('Request failed with status 502.');
+  });
 
-    fetchMock.mockImplementation(async () => jsonResponse(503, { status: 'degraded', database: 'error', version: 'dev' }));
-    expect((await catchApiError(api.getHealth())).code).toBe('http_error');
+  it('returns the Health body of a 503 instead of throwing', async () => {
+    const degraded = { status: 'degraded', database: 'error', version: 'dev' };
+    fetchMock.mockImplementation(async () => jsonResponse(503, degraded));
+    await expect(api.getHealth()).resolves.toEqual(degraded);
+
+    // Other endpoints still treat 503 as an error.
+    fetchMock.mockImplementation(async () => new Response('Service Unavailable', { status: 503 }));
+    expect((await catchApiError(api.getTicket(1))).code).toBe('http_error');
+    // And the health check still fails on other statuses.
+    fetchMock.mockImplementation(async () => new Response('Bad gateway', { status: 502 }));
+    expect((await catchApiError(api.getHealth())).status).toBe(502);
   });
 
   it('turns network failures into network_error', async () => {
