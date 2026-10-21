@@ -84,4 +84,29 @@ For a real incident, write it up in [`incidents/`](incidents/).
 
 ## Demonstration
 
-Recorded after the workflow is merged (it can only be dispatched from `main`).
+Both runs were dispatched from `main` on 2026-10-21, right after PR #13 merged, with `gh workflow run uptime.yml`. Production was not changed; the failure comes from the extra check of a path that doesn't exist.
+
+| # | Run | Input | Result | Effect on issues |
+|---|---|---|---|---|
+| 1 | [39693785813](https://github.com/mrfmanuel/benchtrack/actions/runs/39693785813) (23:29 UTC) | `simulate_failure=true` | ❌ failure (exit 1): 1 of 4 checks failed | Opened [#15](https://github.com/mrfmanuel/benchtrack/issues/15) "Uptime alert: Simulated failure (test only) failing", label `alert`, at 23:30:00 |
+| 2 | [39693853814](https://github.com/mrfmanuel/benchtrack/actions/runs/39693853814) (23:30 UTC) | none | ✅ success: all 3 checks passed | Commented "Recovered." on #15 and closed it as completed at 23:30:43 |
+
+**The alert issue (#15) as it was opened:**
+
+| Check | Result | HTTP | Latency | Attempts | Detail |
+|---|---|---|---|---|---|
+| Health (app + database) | ✅ OK | 200 | 127 ms | 1 | — |
+| Tracking page (SPA) | ✅ OK | 200 | 118 ms | 1 | — |
+| Tracking lookup (public API) | ✅ OK | 200 | 372 ms | 1 | — |
+| Simulated failure (test only) | ❌ FAIL | 404 | 294 ms | 1 | expected HTTP 200, got 404 |
+
+The body also links the run and [How to respond](#how-to-respond). The recovery comment has the same table with the 3 real checks (147, 155 and 186 ms).
+
+What this shows:
+
+- **Open:** a failing run opens one issue with the `alert` label. Its title names the failing check, and it holds no token or customer data (status codes, timings and public URLs only).
+- **Retry rules:** the 404 is not retried (`Attempts 1`). Only connection errors, timeouts and 5xx are retried.
+- **Close:** the next passing run closes the alert by itself.
+- **Other issues untouched:** the closed #7, which also has the `alert` label, was left alone because the search matches only titles starting with "Uptime alert:".
+
+To reproduce: `gh workflow run uptime.yml -f simulate_failure=true`, then `gh workflow run uptime.yml` (or wait for the next scheduled run).
