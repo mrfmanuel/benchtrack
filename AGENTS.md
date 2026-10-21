@@ -62,11 +62,14 @@ Instructions for AI coding agents (and human contributors) working in this repos
 
 ## Frontend (`frontend/`)
 
-- Vite + React + TypeScript. **All HTTP calls go through `src/api/client.ts`** — no `fetch` in components.
+- Vite + React 19 + TypeScript, react-router, plain CSS (`src/index.css`). **All HTTP calls go through `src/api/client.ts`** — no `fetch` in components. The client attaches the bearer token (never on `/api/public/*`), parses the error envelope into `ApiError` (`status`, `code`, `message`, `details`, `fieldErrors`, `retryAfter`), and on any `401` clears the stored token and redirects to sign-in.
 - Types for API payloads live in `src/api/types.ts` and must match `openapi.yaml`.
-- Pure logic (status labels/colors, allowed next statuses, date formatting) in `src/lib/` with Vitest tests.
-- API base URL: relative `/api` (same origin in production; Vite dev proxy to `http://localhost:8000` locally).
-- Run: `npm run dev` · Tests: `npm test` · Build: `npm run build`.
+- Pure logic (status labels/colors, allowed next statuses, money/date formatting, tracking-code normalization, form helpers) in `src/lib/` with Vitest tests. `src/lib/statuses.test.ts` parses the transition table out of `product-spec.md` and `openapi.yaml`, so a workflow change must update both docs and `statuses.ts`.
+- Layout: `src/pages/` (one per route), `src/components/`, `src/layouts/` (staff vs. minimal public layout), `src/hooks/useApi.ts`.
+- API base URL: relative `/api` (same origin in production). The Vite dev server proxies `/api` and `/docs` to `http://127.0.0.1:8000` (`127.0.0.1`, not `localhost`: see the Windows note in `docs/database.md`); override with the shell variable `API_PROXY_TARGET`.
+- Build-time config: `VITE_SHOP_NAME` (receipt and header), see `frontend/.env.example`. `VITE_*` values are public — never put secrets there.
+- Run (from `frontend/`): `npm install` once, then `npm run dev` (http://localhost:5173) · Tests: `npm test` · Lint: `npm run lint` (oxlint) · Type-check: `npm run typecheck` · Build: `npm run build`.
+- In tests, write `beforeEach(() => { mock.mockReset(); })` with braces: Vitest runs a function returned from `beforeEach` as teardown.
 
 ## Running everything
 

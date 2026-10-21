@@ -20,7 +20,7 @@ info:
     identifier: MIT
 servers:
   - url: /
-    description: Same origin (production) or Vite dev proxy to http://localhost:8000 (local)
+    description: Same origin (production) or Vite dev proxy to http://127.0.0.1:8000 (local)
 security:
   - staffToken: []
 tags:
