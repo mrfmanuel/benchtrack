@@ -26,6 +26,9 @@ How BenchTrack is tested, from fast pure-logic tests to the containerized app. E
 | Contract parity | `backend/tests/api/test_contract.py` | 4 | `uv run pytest tests/api/test_contract.py` | nothing |
 | Contract lint | `openapi.yaml` | — | `npx @redocly/cli@2.66.0 lint openapi.yaml` | Node |
 | Frontend | `frontend/src/**/*.test.ts(x)` | 135 in 11 files | `npm test` | Node |
+| Agent hooks (guard, ruff hook) | `agent-hooks/tests/` | 35 (plus sub-cases) | `python -m unittest discover -s agent-hooks/tests` | Python 3.12 (stdlib) |
+| MCP server | `mcp-server/tests/` | 25 | `cd mcp-server && uv run pytest -q` | nothing (mocked API) |
+| Plugin sync | `plugins/benchtrack-dev/` | — | `python plugins/sync_plugin.py --check` | nothing |
 | Docker smoke | `ci.yml` job `docker` | — | see [below](#docker-image) | Docker |
 
 Backend commands run from `backend/`, frontend commands from `frontend/`, Redocly from the repo root.
@@ -140,6 +143,7 @@ docker run --rm -v "${PWD}:/repo" -w /repo rhysd/actionlint:1.7.12
 | `integration` | `postgres:16` service, `TEST_DATABASE_URL`, `uv run pytest -m integration` (fails on skips) |
 | `frontend` | Node 24, `npm ci`, lint, test, build |
 | `docker` | image build (GitHub Actions cache) + smoke test against PostgreSQL |
+| `agent-pack` | guard + ruff hook unit tests, JSON validity of agent configs, plugin copy in sync, MCP server ruff + tests |
 | `semgrep` | `semgrep scan --config auto --error`; SARIF and JSON uploaded as the `semgrep-results` artifact |
 
 `cd.yml` deploys only after a successful CI run for a push to `main`, then polls `/api/health` (up to ~10 minutes) until `status` is `ok` and `version` equals the commit CI tested.

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "benchtrack": {
+      "command": "uv",
+      "args": ["run", "--directory", "mcp-server", "--frozen", "--quiet", "benchtrack-mcp"],
+      "env": {
+        "BENCHTRACK_URL": "${BENCHTRACK_URL:-http://127.0.0.1:8000}",
+        "BENCHTRACK_TOKEN": "${BENCHTRACK_TOKEN:-}"
+      }
+    }
+  }
+}

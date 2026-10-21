@@ -203,6 +203,37 @@ jobs:
         if: always()
         run: docker logs benchtrack || true
 
+  agent-pack:
+    name: Agent pack (hooks, MCP server, plugin sync)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: mcp-server/uv.lock
+          cache-suffix: agent-pack
+      - name: Guard and ruff hook tests (stdlib unittest)
+        run: python3 -m unittest discover -s agent-hooks/tests -v
+      - name: Agent config files are valid JSON
+        run: |
+          for f in .claude/settings.json .mcp.json plugins/benchtrack-dev/.claude-plugin/plugin.json \
+                   plugins/benchtrack-dev/hooks/hooks.json plugins/benchtrack-dev/.mcp.json; do
+            python3 -m json.tool "$f" > /dev/null && echo "ok: $f"
+          done
+      - name: Plugin copy matches its sources
+        run: python3 plugins/sync_plugin.py --check
+      - name: MCP server lint and tests
+        working-directory: mcp-server
+        run: |
+          uv sync --locked
+          uv run ruff check . ../agent-hooks ../plugins/sync_plugin.py
+          uv run ruff format --check . ../agent-hooks ../plugins/sync_plugin.py
+          uv run pytest -q
+
   semgrep:
     name: Semgrep
     runs-on: ubuntu-latest

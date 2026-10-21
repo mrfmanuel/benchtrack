@@ -84,9 +84,17 @@ Instructions for AI coding agents (and human contributors) working in this repos
 - Operations (start/stop, logs, deploy, rollback, token rotation): [`ops/runbook.md`](ops/runbook.md). Security artifacts and the AI tool/data policy: [`security/README.md`](security/README.md). Agents never merge to `main`, and production actions need an explicit human "yes".
 - CI (`.github/workflows/ci.yml`) must stay green; CD (`cd.yml`) deploys only after CI succeeds on `main`. Test layers, commands and counts: [`docs/testing.md`](docs/testing.md) — update the counts when adding tests. Pin new actions to a commit SHA, keep `permissions: contents: read`, pass secrets via `env:` and never echo them; lint workflows with actionlint.
 
+## Agent extension pack (Claude Code)
+
+- Sessions in this repo load [`.claude/settings.json`](.claude/settings.json): **deny** `.env*` (except `.env.example`), `rm -rf`, force pushes, `git reset --hard`, Docker prune/volume removal, `printenv`, `gh pr merge`; **ask** for `git push`, `docker compose down -v`, `.github/workflows/` edits and CI re-runs; **allow** the test and lint commands. A PreToolUse guard ([`agent-hooks/guard.py`](agent-hooks/guard.py)) blocks the same classes in any shell form, plus pushes to `main` and printing secrets; a PostToolUse hook runs ruff on edited Python files. Model and rationale: [`docs/permissions.md`](docs/permissions.md).
+- If the guard blocks something you need, don't work around it: ask the human. To change a rule, edit `guard.py` **and** its tests (`python -m unittest discover -s agent-hooks/tests`), then open a PR.
+- Skills `contract-first-endpoint` and `release-check`, the read-only `contract-reviewer` subagent, and the read-only `benchtrack` MCP server live in `agent-capabilities/` and `mcp-server/`, packaged as the `benchtrack-dev` plugin. After editing a source, run `python plugins/sync_plugin.py` (CI checks the copy). Details: [`docs/agent-extension-pack.md`](docs/agent-extension-pack.md).
+- The MCP server reads `BENCHTRACK_URL`/`BENCHTRACK_TOKEN` from the environment; never write a token into `.mcp.json` or a chat, and point it only at fictional data.
+
 ## Don'ts
 
 - Don't add features listed as out of scope in `product-spec.md`.
 - Don't expose customer PII or internal notes on `/api/public/*`.
 - Don't disable tests, linters or scanners to make CI pass — fix the cause or document the exception in `security/`.
 - Don't run destructive commands (`rm -rf`, `DROP`, `git push --force`, `docker system prune`) without asking.
+- Don't push to `main` or merge PRs: work on a branch, open a PR, and a human merges (branch protection).

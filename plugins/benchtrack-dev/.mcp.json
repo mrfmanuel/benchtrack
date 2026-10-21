@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "benchtrack": {
+      "command": "uv",
+      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}/mcp-server", "--frozen", "--quiet", "benchtrack-mcp"],
+      "env": {
+        "BENCHTRACK_URL": "${BENCHTRACK_URL:-http://127.0.0.1:8000}",
+        "BENCHTRACK_TOKEN": "${BENCHTRACK_TOKEN:-}",
+        "UV_PROJECT_ENVIRONMENT": "${CLAUDE_PLUGIN_DATA}/mcp-venv"
+      }
+    }
+  }
+}

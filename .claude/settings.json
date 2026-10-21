@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(.envrc)",
+      "Read(!.env.example)",
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Edit(.envrc)",
+      "Edit(!.env.example)",
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git push --force-with-lease *)",
+      "Bash(git reset --hard *)",
+      "Bash(docker system prune *)",
+      "Bash(docker volume rm *)",
+      "Bash(docker volume prune *)",
+      "Bash(printenv *)",
+      "Bash(gh pr merge *)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(docker compose down -v *)",
+      "Bash(docker compose down --volumes *)",
+      "Edit(.github/workflows/**)",
+      "Bash(gh workflow run *)",
+      "Bash(gh run rerun *)"
+    ],
+    "allow": [
+      "Bash(uv run pytest *)",
+      "Bash(uv run --frozen pytest *)",
+      "Bash(uv run ruff check *)",
+      "Bash(uv run ruff format *)",
+      "Bash(npm test *)",
+      "Bash(npm run lint *)",
+      "Bash(npm run typecheck *)",
+      "Bash(npm run build *)",
+      "Bash(npx vitest run *)",
+      "Bash(npx --yes @redocly/cli@2.66.0 lint *)",
+      "Bash(python -m unittest discover *)",
+      "Bash(python plugins/sync_plugin.py --check)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Read|Edit|Write|MultiEdit|NotebookEdit|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv",
+            "args": ["run", "--no-project", "--quiet", "python", "${CLAUDE_PROJECT_DIR}/agent-hooks/guard.py"],
+            "timeout": 20,
+            "onFailure": "block",
+            "statusMessage": "BenchTrack guard"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv",
+            "args": ["run", "--no-project", "--quiet", "python", "${CLAUDE_PROJECT_DIR}/agent-hooks/ruff_check.py"],
+            "timeout": 90,
+            "statusMessage": "ruff check"
+          }
+        ]
+      }
+    ]
+  }
+}

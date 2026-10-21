@@ -6,9 +6,10 @@ Applies to everyone working on BenchTrack, human or agent. Effective 2026-10-21.
 
 | Tool | Used for | Access |
 |---|---|---|
-| **Claude Code CLI** (Windows, in the repo folder) | Implementation: code, tests, docs, scans, git commits and pushes, opening PRs | Working tree, local Docker, `gh` CLI as the maintainer; every command and edit approved interactively (default permission mode). See [agent security notes](agent-security-notes.md). |
+| **Claude Code CLI** (Windows, in the repo folder) | Implementation: code, tests, docs, scans, git commits and pushes, opening PRs | Working tree, local Docker, `gh` CLI as the maintainer; default permission mode plus, since Step 10, the project's allow/ask/deny rules and guard hooks ([permissions](../docs/permissions.md)). See [agent security notes](agent-security-notes.md). |
 | **Claude in the Cowork desktop app** | Planning and review; operating GitHub and Render web UIs via Claude in Chrome | Project folder via a Linux VM bridge; the maintainer's Chrome with logged-in GitHub and Render sessions |
 | Claude in Chrome (from either agent) | Browser checks of the local app (UI smoke tests, CSP), GitHub Actions and Render dashboards | Whatever the browser profile is signed in to |
+| BenchTrack MCP server (`mcp-server/`, Step 10) | Lets Claude Code read API data while developing | Read-only GET tools; token from the environment, never shown to the model. **Local or demo (fictional) data only**: tool results go to the AI provider |
 
 No other AI tools are approved for this project. Adding one requires updating this table.
 
