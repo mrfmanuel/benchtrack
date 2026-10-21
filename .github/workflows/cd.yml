@@ -1,0 +1,82 @@
+# Continuous deployment: after CI succeeds on a push to main, trigger the Render deploy
+# hook and wait for the deployed app to report healthy.
+#
+# Configuration (Settings → Secrets and variables → Actions):
+#   secret   RENDER_DEPLOY_HOOK_URL   Render deploy hook URL (never echoed)
+#   variable APP_URL                  public base URL, e.g. https://benchtrack.onrender.com
+# Until the secret exists, the job is skipped with a notice instead of failing.
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Render
+    # Only a successful CI run for a push to main (not a PR whose branch is named main).
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_URL: ${{ vars.APP_URL }}
+    steps:
+      - name: Check deploy configuration
+        id: config
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "::notice title=Deploy skipped::The RENDER_DEPLOY_HOOK_URL secret is not set, so nothing was deployed. Add it (and the APP_URL variable) to enable CD."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$APP_URL" ]; then
+            echo "::error title=APP_URL missing::Set the APP_URL repository variable so the deploy can be verified."
+            exit 1
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger Render deploy
+        if: steps.config.outputs.enabled == 'true'
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        # The URL is passed only via the environment and never printed; curl's error
+        # messages do not include it either.
+        run: |
+          status=$(curl -sS -X POST -o /dev/null -w '%{http_code}' --max-time 30 "$DEPLOY_HOOK")
+          echo "Deploy hook responded with HTTP $status"
+          case "$status" in
+            2??) ;;
+            *) echo "::error::The Render deploy hook was rejected (HTTP $status)"; exit 1 ;;
+          esac
+
+      - name: Wait for a healthy deployment
+        if: steps.config.outputs.enabled == 'true'
+        # Render keeps the previous instance up until the new one passes its health check,
+        # so give the build a head start before polling; then poll for up to ~5 minutes.
+        run: |
+          url="${APP_URL%/}/api/health"
+          sleep 30
+          for i in $(seq 1 27); do
+            body=$(curl -sS --max-time 10 "$url" || true)
+            if printf '%s' "$body" | grep -q '"status":"ok"'; then
+              echo "Healthy after attempt $i: $body"
+              exit 0
+            fi
+            echo "Attempt $i: not healthy yet"
+            sleep 10
+          done
+          echo "::error title=Deploy not healthy::$url did not report status ok within ~5 minutes"
+          exit 1

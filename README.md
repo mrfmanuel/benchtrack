@@ -1,8 +1,11 @@
 # BenchTrack
 
+[![CI](https://github.com/mrfmanuel/benchtrack/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mrfmanuel/benchtrack/actions/workflows/ci.yml)
+[![CD](https://github.com/mrfmanuel/benchtrack/actions/workflows/cd.yml/badge.svg)](https://github.com/mrfmanuel/benchtrack/actions/workflows/cd.yml)
+
 A lightweight repair-ticket tracker for a single small computer-repair shop, with a protected staff area and a public tracking page.
 
-> 🚧 Work in progress — runs locally and in Docker Compose; CI/CD and deployment come next.
+> 🚧 Work in progress — runs locally and in Docker Compose, with CI on every push and pull request; the production deployment comes next.
 
 ## Problem
 
@@ -33,7 +36,7 @@ docker compose exec app python -m app.seed   # optional fictional demo data
 
 Open http://localhost:8000 and sign in with your `STAFF_TOKEN`. The public tracking page is http://localhost:8000/track (try `BT-DEM22` after seeding) and the API docs are at http://localhost:8000/docs.
 
-- Port 8000 busy? Set `APP_PORT=8010` in `.env` (or `$env:APP_PORT = "8010"`) and open that port instead.
+- The app is published on `127.0.0.1` only (not reachable from other devices on your network). Port 8000 busy? Set `APP_PORT=8010` in `.env` (or `$env:APP_PORT = "8010"`) and open that port instead.
 - `docker compose logs -f app` shows JSON logs (tracking codes masked). `docker compose down` keeps the data in the `pgdata` volume; only `docker compose down -v` deletes it.
 - Compose sets `DATABASE_URL` (to the `db` service) and `LOG_FORMAT=json` for the app, overriding `.env`.
 
@@ -82,7 +85,12 @@ Open http://localhost:5173 and sign in with your `STAFF_TOKEN`. Customers track 
 | `npm run typecheck` | `tsc -b` |
 | `npm run build` | type-check and production build into `frontend/dist/` |
 
-Backend tests and database options: see [`AGENTS.md`](AGENTS.md#backend-tests) and [`docs/database.md`](docs/database.md).
+Tests: see [`docs/testing.md`](docs/testing.md) for every layer, its command and test count. Database options: [`docs/database.md`](docs/database.md).
+
+## CI/CD
+
+- [`ci.yml`](.github/workflows/ci.yml) runs on pull requests and pushes to `main`: Redocly contract lint, backend ruff + unit/API tests, PostgreSQL integration tests, frontend lint/test/build, a Docker image smoke test and Semgrep (results uploaded as an artifact).
+- [`cd.yml`](.github/workflows/cd.yml) runs after CI succeeds on `main`: it calls the Render deploy hook and waits up to ~5 minutes for `APP_URL/api/health` to report `ok`. Configure it under *Settings → Secrets and variables → Actions*: secret `RENDER_DEPLOY_HOOK_URL`, variable `APP_URL`. Until the secret exists, the deploy is skipped with a notice.
 
 ## Documentation
 
@@ -90,4 +98,5 @@ Backend tests and database options: see [`AGENTS.md`](AGENTS.md#backend-tests) a
 - [`openapi.yaml`](openapi.yaml) — API contract
 - [`AGENTS.md`](AGENTS.md) — instructions for coding agents and contributors
 - [`docs/database.md`](docs/database.md) — database environments, migrations, seeding, ER diagram
+- [`docs/testing.md`](docs/testing.md) — test pyramid, commands and counts, CI jobs
 - [`docs/ai-workflow.md`](docs/ai-workflow.md) — AI-assisted development log

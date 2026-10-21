@@ -1,0 +1,207 @@
+# Continuous integration: contract, backend, PostgreSQL integration, frontend, Docker
+# image smoke test and Semgrep. cd.yml deploys only after this workflow succeeds on main.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  contract:
+    name: Contract (Redocly lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      # Pinned CLI version; .redocly.lint-ignore.yaml documents the one ignored rule.
+      - run: npx --yes @redocly/cli@2.66.0 lint openapi.yaml
+
+  backend:
+    name: Backend (ruff, unit + API tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      # Default selection: unit + api (integration is deselected in pyproject.toml).
+      - run: uv run pytest -ra
+
+  integration:
+    name: Integration (PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: benchtrack
+          POSTGRES_PASSWORD: benchtrack
+          POSTGRES_DB: benchtrack_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U benchtrack -d benchtrack_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # Throwaway CI database; the name must end in _test (the tests wipe its schema).
+      TEST_DATABASE_URL: postgresql+psycopg://benchtrack:benchtrack@127.0.0.1:5432/benchtrack_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --locked
+      # The integration fixtures skip (not fail) without PostgreSQL, so a misconfigured
+      # service would pass silently. Treat any skip as a failure here.
+      - name: pytest -m integration
+        run: |
+          uv run pytest -m integration -ra --junitxml=integration.xml
+          python3 - <<'EOF'
+          import sys, xml.etree.ElementTree as ET
+          suite = ET.parse("integration.xml").getroot().find("testsuite")
+          tests, skipped = int(suite.get("tests")), int(suite.get("skipped"))
+          print(f"integration: {tests} tests, {skipped} skipped")
+          sys.exit(1 if tests == 0 or skipped else 0)
+          EOF
+
+  frontend:
+    name: Frontend (lint, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  docker:
+    name: Docker image (build + smoke test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: benchtrack
+          POSTGRES_PASSWORD: benchtrack
+          POSTGRES_DB: benchtrack
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U benchtrack -d benchtrack"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      IMAGE: benchtrack:ci
+      BASE_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          push: false
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Start the container
+        # Host network: the container reaches the postgres service on 127.0.0.1:5432.
+        # STAFF_TOKEN is a fictional value for this throwaway smoke test only.
+        run: |
+          docker run -d --name benchtrack --network host \
+            -e STAFF_TOKEN=ci-smoke-test-token-fictional-0000 \
+            -e DATABASE_URL=postgresql+psycopg://benchtrack:benchtrack@127.0.0.1:5432/benchtrack \
+            -e LOG_FORMAT=json \
+            "$IMAGE"
+      - name: Wait for /api/health
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -fsS "$BASE_URL/api/health"; then echo; exit 0; fi
+            sleep 2
+          done
+          echo "::error::The container did not become healthy within 60 seconds"
+          exit 1
+      - name: Smoke test
+        run: |
+          set -eu
+          curl -fsS "$BASE_URL/api/health" | grep -q '"status":"ok"'
+          curl -fsS "$BASE_URL/" | grep -q '<div id="root">'
+          curl -fsS "$BASE_URL/track/BT-AAAAA" | grep -q '<div id="root">'
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/api/nope")" = 404
+          curl -s "$BASE_URL/api/nope" | grep -q '"code":"not_found"'
+          curl -fsS -o /dev/null "$BASE_URL/docs"
+          curl -fsS -o /dev/null "$BASE_URL/api/openapi.yaml"
+          test "$(docker inspect -f '{{.Config.User}}' "$IMAGE")" = benchtrack
+          echo "Smoke test passed"
+      - name: Container logs
+        if: always()
+        run: docker logs benchtrack || true
+
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: semgrep/semgrep:1.182.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: semgrep scan
+        run: semgrep scan --config auto --error --sarif-output=semgrep.sarif --json-output=semgrep.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: semgrep-results
+          path: |
+            semgrep.sarif
+            semgrep.json
+          if-no-files-found: warn
+          retention-days: 30

@@ -78,7 +78,7 @@ Instructions for AI coding agents (and human contributors) working in this repos
 - The image mirrors the repo layout under `/app` (`/app/backend`, `/app/openapi.yaml`, `/app/frontend/dist`); the build fails if the contract or `index.html` is not where the app reads it. `docker/entrypoint.sh` runs `alembic upgrade head`, then uvicorn on `$PORT` with proxy headers. It runs as the non-root user `benchtrack`.
 - SPA serving (`app/spa.py`, enabled by `FRONTEND_DIST`) is a 404 fallback: GET requests for unknown non-`/api`, non-`/assets` paths get `index.html`; `/api/*` keeps the JSON error envelope. Add API routes under `/api` only.
 - Shell scripts and the Dockerfile must stay LF (`.gitattributes`).
-- CI must stay green; CD deploys only after all tests pass on `main`.
+- CI (`.github/workflows/ci.yml`) must stay green; CD (`cd.yml`) deploys only after CI succeeds on `main`. Test layers, commands and counts: [`docs/testing.md`](docs/testing.md) — update the counts when adding tests. Pin new actions to a commit SHA, keep `permissions: contents: read`, pass secrets via `env:` and never echo them; lint workflows with actionlint.
 
 ## Don'ts
 
