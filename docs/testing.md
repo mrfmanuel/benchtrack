@@ -12,16 +12,16 @@ How BenchTrack is tested, from fast pure-logic tests to the containerized app. E
              ┌───┴───────────────────────────────┴───┐
              │ API — 255 (incl. contract parity, SPA, headers) │  in-process HTTP, in-memory SQLite
          ┌───┴───────────────────────────────────────┴───┐
-         │ Unit — 281 backend · Vitest — 135 frontend     │  pure logic, no HTTP or DB
+         │ Unit — 282 backend · Vitest — 135 frontend     │  pure logic, no HTTP or DB
          └───────────────────────────────────────────────┘
   Static checks: Redocly (contract) · ruff · oxlint · tsc · Semgrep · actionlint
 ```
 
 | Layer | Where | Tests | Command | Needs |
 |---|---|---:|---|---|
-| Backend unit | `backend/tests/unit/` | 281 | `uv run pytest tests/unit` | nothing |
+| Backend unit | `backend/tests/unit/` | 282 | `uv run pytest tests/unit` | nothing |
 | Backend API | `backend/tests/api/` | 255 | `uv run pytest tests/api` | nothing |
-| Backend default run (unit + API) | both of the above | 536 | `uv run pytest` | nothing |
+| Backend default run (unit + API) | both of the above | 537 | `uv run pytest` | nothing |
 | Backend integration | `backend/tests/integration/` | 10 | `uv run pytest -m integration` | PostgreSQL + `TEST_DATABASE_URL` |
 | Contract parity | `backend/tests/api/test_contract.py` | 4 | `uv run pytest tests/api/test_contract.py` | nothing |
 | Contract lint | `openapi.yaml` | — | `npx @redocly/cli@2.66.0 lint openapi.yaml` | Node |
@@ -32,7 +32,7 @@ Backend commands run from `backend/`, frontend commands from `frontend/`, Redocl
 
 ## Backend (`backend/`)
 
-### Unit — `tests/unit/` (281)
+### Unit — `tests/unit/` (282)
 
 Pure functions in `app/services/` and `app/config.py`, no HTTP and no database: status transitions (the full allowed/forbidden matrix), tracking-code generation and normalization, phone normalization, stale detection, the sliding-window rate limiter, log masking of tracking codes, rate-limit client keys (never `X-Forwarded-For`, IPv6 by /64), CSP construction and HTTPS detection, settings validation (`STAFF_TOKEN` length, URL normalization, `version` precedence: `APP_VERSION` → `RENDER_GIT_COMMIT` → `dev`) and engine options. They run in about a second.
 
@@ -47,7 +47,7 @@ In-process HTTP through FastAPI's `TestClient` against in-memory SQLite (`Static
 
 ```powershell
 uv run pytest tests/api
-uv run pytest          # unit + API (integration is deselected in pyproject.toml): 536 passed, 10 deselected
+uv run pytest          # unit + API (integration is deselected in pyproject.toml): 537 passed, 10 deselected
 ```
 
 ### Contract parity — `tests/api/test_contract.py` (4)
@@ -68,7 +68,7 @@ Real PostgreSQL: `alembic upgrade head` on an empty database, constraint naming,
 
    ```powershell
    $env:TEST_DATABASE_URL = "postgresql+psycopg://benchtrack:benchtrack@127.0.0.1:5433/benchtrack_test"
-   uv run pytest -m integration          # 10 passed, 536 deselected
+   uv run pytest -m integration          # 10 passed, 537 deselected
    ```
 
    Use `127.0.0.1`, not `localhost` (see the Windows note in [`database.md`](database.md)). `TEST_DATABASE_URL` can also live in `.env`.
@@ -121,6 +121,8 @@ curl.exe -s http://127.0.0.1:8000/api/health
 ```
 
 ## Security and workflow checks
+
+Dependency, secret and code scans with triage: [`security/scan-findings.md`](../security/scan-findings.md) (raw outputs in `security/scans/`).
 
 ```powershell
 # Semgrep (same as CI; --error fails on any finding)

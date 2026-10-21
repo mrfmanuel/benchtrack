@@ -1,6 +1,8 @@
 """Tracking code generation and normalization (spec §4 F2, §9.12, §9.13)."""
 
+import inspect
 import re
+import secrets
 from collections.abc import Iterator
 
 import pytest
@@ -166,3 +168,11 @@ def test_create_does_not_swallow_other_errors():
     with pytest.raises(RuntimeError, match="database is down"):
         create_with_unique_code(try_create)
     assert len(calls) == 1
+
+
+def test_generation_defaults_to_a_cryptographically_secure_choice():
+    """Codes are the only secret on the public route, so they must come from `secrets`, never
+    `random`. Semgrep cannot parse this module (PEP 695 generics, see
+    security/scan-findings.md), so this test is the guard against a regression."""
+    default = inspect.signature(generate_tracking_code).parameters["choice"].default
+    assert default is secrets.choice
