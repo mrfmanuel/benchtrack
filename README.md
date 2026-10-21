@@ -2,7 +2,7 @@
 
 A lightweight repair-ticket tracker for a single small computer-repair shop, with a protected staff area and a public tracking page.
 
-> 🚧 Work in progress — backend and frontend run locally; Docker image and deployment come next.
+> 🚧 Work in progress — runs locally and in Docker Compose; CI/CD and deployment come next.
 
 ## Problem
 
@@ -19,6 +19,24 @@ Small independent computer-repair shops (one technician, a bench, a WhatsApp num
 
 See [`product-spec.md`](product-spec.md) for the full scope, including what is out of scope for v1.
 
+## Quick start (Docker Compose)
+
+Requirements: Docker with Compose v2. One image serves the API and the built frontend; PostgreSQL runs next to it.
+
+```powershell
+Copy-Item .env.example .env
+# Edit .env: set STAFF_TOKEN to a random value of 16+ characters, e.g. from
+#   python -c "import secrets; print(secrets.token_urlsafe(32))"
+docker compose up --build -d --wait          # builds the image, runs migrations, waits until healthy
+docker compose exec app python -m app.seed   # optional fictional demo data
+```
+
+Open http://localhost:8000 and sign in with your `STAFF_TOKEN`. The public tracking page is http://localhost:8000/track (try `BT-DEM22` after seeding) and the API docs are at http://localhost:8000/docs.
+
+- Port 8000 busy? Set `APP_PORT=8010` in `.env` (or `$env:APP_PORT = "8010"`) and open that port instead.
+- `docker compose logs -f app` shows JSON logs (tracking codes masked). `docker compose down` keeps the data in the `pgdata` volume; only `docker compose down -v` deletes it.
+- Compose sets `DATABASE_URL` (to the `db` service) and `LOG_FORMAT=json` for the app, overriding `.env`.
+
 ## Configuration
 
 Copy `.env.example` to `.env` (never commit `.env`).
@@ -29,6 +47,10 @@ Copy `.env.example` to `.env` (never commit `.env`).
 | `DATABASE_URL` | SQLAlchemy URL. SQLite for local dev/tests, PostgreSQL in Compose/production. | `sqlite:///./benchtrack.db` |
 | `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `INFO` |
 | `LOG_FORMAT` | `text` or `json` (`json` in Compose/production) | `text` |
+| `FRONTEND_DIST` | Built SPA directory to serve from FastAPI (set in the Docker image to `/app/frontend/dist`). Unset in development, where Vite serves the frontend. | — |
+| `PORT` | Port uvicorn listens on inside the container | `8000` |
+| `APP_PORT` | Compose only: host port published for the app | `8000` |
+| `VITE_SHOP_NAME` | Build-time shop name on receipts and in the header (public, not a secret) | `BenchTrack Repair` |
 
 ## Running locally
 

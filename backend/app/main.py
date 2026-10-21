@@ -15,6 +15,7 @@ from app.logging_config import configure_logging
 from app.responses import UTF8JSONResponse
 from app.routers import customers, dashboard, docs, health, public, tickets
 from app.services.rate_limit import SlidingWindowRateLimiter
+from app.spa import mount_spa
 
 PUBLIC_RATE_LIMIT = 10
 PUBLIC_RATE_WINDOW_SECONDS = 60.0
@@ -59,6 +60,8 @@ def create_app(
     register_exception_handlers(app)
     for module in (health, customers, tickets, dashboard, public, docs):
         app.include_router(module.router)
+    if settings.frontend_dist is not None:
+        mount_spa(app, settings.frontend_dist)
     return app
 
 

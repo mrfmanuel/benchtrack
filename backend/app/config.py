@@ -1,6 +1,7 @@
 """Application settings from environment variables (spec §5, §9.18, §9.27)."""
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import SecretStr, field_validator
@@ -44,6 +45,8 @@ class Settings(DatabaseSettings):
     staff_token: SecretStr
     log_level: LogLevel = "INFO"
     log_format: LogFormat = "text"
+    # Built SPA to serve (the Docker image sets it). Unset in development: Vite serves it.
+    frontend_dist: Path | None = None
 
     @field_validator("staff_token", mode="before")
     @classmethod

@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
 
 from app.responses import UTF8JSONResponse as JSONResponse
 from app.services.tracking_codes import TrackingCodeGenerationError
@@ -122,7 +123,10 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(StarletteHTTPException)
-    async def _http_exception(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    async def _http_exception(request: Request, exc: StarletteHTTPException) -> Response:
+        spa = getattr(request.app.state, "spa", None)
+        if exc.status_code == 404 and spa is not None and spa.accepts(request):
+            return spa.response_for(request)  # client-side route (see app/spa.py)
         code = _HTTP_CODES.get(exc.status_code, "http_error")
         message = exc.detail if isinstance(exc.detail, str) else "Request failed."
         return error_response(exc.status_code, code, message, headers=exc.headers)

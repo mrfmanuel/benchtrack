@@ -1,6 +1,7 @@
-# Local PostgreSQL for development and integration tests.
-# The app service is added in Step 5.
-#   docker compose up -d db --wait
+# Local full stack: PostgreSQL + the BenchTrack image (API + SPA) built from ./Dockerfile.
+#   docker compose up --build -d --wait          # app on http://localhost:${APP_PORT:-8000}
+#   docker compose exec app python -m app.seed   # optional fictional demo data
+#   docker compose up -d db --wait               # PostgreSQL only (dev / integration tests)
 # Credentials come from .env (see .env.example); the defaults are for local use only.
 
 services:
@@ -22,6 +23,31 @@ services:
       timeout: 3s
       retries: 10
       start_period: 10s
+
+  app:
+    build:
+      context: .
+      args:
+        VITE_SHOP_NAME: ${VITE_SHOP_NAME:-BenchTrack Repair}
+    image: benchtrack:local
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # STAFF_TOKEN, LOG_LEVEL, ... from .env; the values below override it.
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-benchtrack}:${POSTGRES_PASSWORD:-benchtrack}@db:5432/${POSTGRES_DB:-benchtrack}
+      LOG_FORMAT: json
+    ports:
+      # Change APP_PORT (in .env or the shell) if 8000 is busy on the host.
+      - "${APP_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "/usr/local/bin/benchtrack-healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
   pgdata:

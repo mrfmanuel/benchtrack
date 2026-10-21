@@ -19,6 +19,7 @@ Instructions for AI coding agents (and human contributors) working in this repos
 ├── frontend/              # Vite + React + TypeScript SPA
 ├── docker-compose.yml     # postgres + app (local full stack)
 ├── Dockerfile             # multi-stage: builds frontend, serves it from FastAPI
+├── docker/                # container entrypoint (migrate + uvicorn) and health check
 ├── .github/workflows/     # CI (tests, scans) and CD (deploy on main)
 ├── docs/                  # architecture, AI workflow log, deployment, testing
 ├── security/              # scan outputs, PR audit, agent security notes, AI policy
@@ -73,7 +74,10 @@ Instructions for AI coding agents (and human contributors) working in this repos
 
 ## Running everything
 
-- Full stack: `docker compose up --build` → app on http://localhost:8000.
+- Full stack: `docker compose up --build -d --wait` → app on http://localhost:${APP_PORT:-8000}; seed with `docker compose exec app python -m app.seed`. Logs: `docker compose logs app` (JSON).
+- The image mirrors the repo layout under `/app` (`/app/backend`, `/app/openapi.yaml`, `/app/frontend/dist`); the build fails if the contract or `index.html` is not where the app reads it. `docker/entrypoint.sh` runs `alembic upgrade head`, then uvicorn on `$PORT` with proxy headers. It runs as the non-root user `benchtrack`.
+- SPA serving (`app/spa.py`, enabled by `FRONTEND_DIST`) is a 404 fallback: GET requests for unknown non-`/api`, non-`/assets` paths get `index.html`; `/api/*` keeps the JSON error envelope. Add API routes under `/api` only.
+- Shell scripts and the Dockerfile must stay LF (`.gitattributes`).
 - CI must stay green; CD deploys only after all tests pass on `main`.
 
 ## Don'ts

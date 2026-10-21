@@ -21,3 +21,7 @@
 *.db binary
 *.sqlite binary
 *.sqlite3 binary
+
+# Shell scripts and Dockerfiles run in Linux containers: always LF.
+*.sh text eol=lf
+Dockerfile text eol=lf

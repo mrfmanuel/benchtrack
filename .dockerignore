@@ -1,0 +1,29 @@
+# Keep the build context small and secret-free. The Dockerfile copies only what it needs;
+# this list protects against accidental COPY of local state.
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/coverage
+**/.coverage
+**/htmlcov
+**/.vite
+**/*.db
+**/*.db-journal
+**/*.sqlite
+**/*.sqlite3
+**/*.log
+.vscode
+.idea
+docs
+security
+ops
