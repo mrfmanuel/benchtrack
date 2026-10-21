@@ -58,7 +58,7 @@ describe('TrackPage', () => {
     expect(within(result).getByText('Lenovo ThinkPad T14 (Laptop)')).toBeInTheDocument();
     expect(within(result).getByText(/waiting for a part/i)).toBeInTheDocument();
 
-    const progress = within(result).getByRole('list', { name: /progress: step 3 of 6/i });
+    const progress = within(result).getByRole('list', { name: 'Repair progress' });
     expect(within(progress).getByText('Waiting for parts').closest('li')).toHaveAttribute('aria-current', 'step');
 
     const history = within(result).getByRole('list', { name: /status history/i });
@@ -133,6 +133,110 @@ describe('TrackPage', () => {
 
   it('shows a cancelled repair instead of the progress steps', async () => {
     trackTicket.mockResolvedValue({ ...TRACKING, status: 'cancelled' });
+    renderAt('/track/BT-7K3QX');
+    expect(await screen.findByText('This repair was cancelled.')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /progress/i })).not.toBeInTheDocument();
+  });
+});
+
+// Issue #6: the progress bar must reflect only statuses the repair actually went through.
+describe('TrackPage progress bar', () => {
+  const at = (day: number) => `2026-10-${String(day).padStart(2, '0')}T12:00:00Z`;
+
+  async function progressSteps(tracking: PublicTracking) {
+    trackTicket.mockResolvedValue(tracking);
+    renderAt(`/track/${tracking.tracking_code}`);
+    const result = await screen.findByRole('region', { name: tracking.tracking_code });
+    const progress = within(result).getByRole('list', { name: /progress/i });
+    const step = (label: string) => within(progress).getByText(label).closest('li') as HTMLElement;
+    return { progress, step };
+  }
+
+  it('does not mark a skipped step as done (BT-DEM28: never waited for parts)', async () => {
+    const { step } = await progressSteps({
+      ...TRACKING,
+      tracking_code: 'BT-DEM28',
+      status: 'ready',
+      timeline: [
+        { status: 'received', at: at(13) },
+        { status: 'diagnosing', at: at(15) },
+        { status: 'repairing', at: at(16) },
+        { status: 'ready', at: at(18) },
+      ],
+    });
+
+    // The bug: "Waiting for parts" was shown as done.
+    expect(step('Waiting for parts')).not.toHaveClass('progress__step--done');
+    expect(step('Waiting for parts')).toHaveClass('progress__step--skipped');
+    for (const label of ['Received', 'Diagnosing', 'Repairing']) {
+      expect(step(label)).toHaveClass('progress__step--done');
+      expect(step(label)).toHaveTextContent(`${label}: done`);
+    }
+    expect(step('Waiting for parts')).toHaveTextContent('Waiting for parts: skipped');
+    expect(step('Ready for pickup')).toHaveAttribute('aria-current', 'step');
+    expect(step('Ready for pickup')).toHaveTextContent('Ready for pickup: current status');
+    expect(step('Delivered')).toHaveClass('progress__step--todo');
+    expect(step('Delivered')).toHaveTextContent('Delivered: not reached yet');
+  });
+
+  it('marks a step done when the repair went back to it (waiting_parts re-entered)', async () => {
+    const { step } = await progressSteps({
+      ...TRACKING,
+      status: 'repairing',
+      timeline: [
+        { status: 'received', at: at(1) },
+        { status: 'diagnosing', at: at(2) },
+        { status: 'repairing', at: at(3) },
+        { status: 'waiting_parts', at: at(4) },
+        { status: 'repairing', at: at(5) },
+      ],
+    });
+
+    expect(step('Waiting for parts')).toHaveClass('progress__step--done');
+    expect(step('Repairing')).toHaveAttribute('aria-current', 'step');
+    expect(step('Ready for pickup')).toHaveClass('progress__step--todo');
+  });
+
+  it('shows a step reached earlier as not done once the repair moved back before it', async () => {
+    // ready → repairing: "Ready for pickup" lies ahead again.
+    const { step } = await progressSteps({
+      ...TRACKING,
+      status: 'repairing',
+      timeline: [
+        { status: 'received', at: at(1) },
+        { status: 'diagnosing', at: at(2) },
+        { status: 'ready', at: at(3) },
+        { status: 'repairing', at: at(4) },
+      ],
+    });
+
+    expect(step('Ready for pickup')).toHaveClass('progress__step--todo');
+    expect(step('Waiting for parts')).toHaveClass('progress__step--skipped');
+    expect(step('Repairing')).toHaveAttribute('aria-current', 'step');
+  });
+
+  it('describes the state in its accessible name without implying completed steps', async () => {
+    const { progress } = await progressSteps({ ...TRACKING, status: 'ready', timeline: [
+      { status: 'received', at: at(1) },
+      { status: 'diagnosing', at: at(2) },
+      { status: 'ready', at: at(3) },
+    ] });
+    expect(progress).toHaveAccessibleName('Repair progress');
+    expect(progress).not.toHaveAccessibleName(/step \d+ of \d+/i);
+    // Exactly two steps are done; the count of done steps matches what is announced.
+    expect(within(progress).getAllByText(/: done$/)).toHaveLength(2);
+  });
+
+  it('keeps cancelled repairs off the progress bar', async () => {
+    trackTicket.mockResolvedValue({
+      ...TRACKING,
+      status: 'cancelled',
+      timeline: [
+        { status: 'received', at: at(1) },
+        { status: 'diagnosing', at: at(2) },
+        { status: 'cancelled', at: at(3) },
+      ],
+    });
     renderAt('/track/BT-7K3QX');
     expect(await screen.findByText('This repair was cancelled.')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: /progress/i })).not.toBeInTheDocument();

@@ -186,7 +186,7 @@ Add `--skip-integration` to run without Docker. Or run each layer on its own:
 |---|---|---|
 | Backend unit + API (one command) | 549 | `uv run pytest` (`backend/`) |
 | Backend integration (real PostgreSQL) | 10 | `uv run pytest -m integration` (`backend/`, needs `TEST_DATABASE_URL`) |
-| Frontend (Vitest + Testing Library) | 136 | `npm test` (`frontend/`) |
+| Frontend (Vitest + Testing Library) | 145 | `npm test` (`frontend/`) |
 | Contract lint | — | `npx @redocly/cli@2.66.0 lint openapi.yaml` (repo root) |
 | Agent pack: hooks, sync script, MCP server | 35 + 9 + 25 | see [`docs/testing.md`](docs/testing.md) |
 
@@ -287,5 +287,4 @@ They load automatically in a Claude Code session started in the repo. Details an
 - **One environment:** CD deploys straight to production after green CI. There is no staging environment or manual promotion step ([#11](https://github.com/mrfmanuel/benchtrack/issues/11)).
 - **Observability is logs only:** structured JSON logs and a health check, but no metrics or traces ([#10](https://github.com/mrfmanuel/benchtrack/issues/10)), only a synthetic uptime alert ([`ops/alerting.md`](ops/alerting.md)) and no on-call automation ([#9](https://github.com/mrfmanuel/benchtrack/issues/9)).
 - **No notifications:** customers aren't told by SMS, email or WhatsApp; they check the tracking page. QR codes on receipts are out of scope.
-- **Public progress bar:** the stepper on the tracking page marks every step before the current one as done, even a step the repair skipped. For example, a ticket that went diagnosing → repairing shows "Waiting for parts" as done. The history list below it is exact ([#6](https://github.com/mrfmanuel/benchtrack/issues/6)).
 - **English UI only**, currency fixed to CRC (₡).

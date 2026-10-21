@@ -15,6 +15,7 @@ import {
   isFinal,
   isTransitionAllowed,
   progressIndex,
+  progressStates,
 } from './statuses';
 
 // The table is read from the spec and the contract themselves (lines like
@@ -125,5 +126,38 @@ describe('progressIndex', () => {
   it('follows the happy path and puts cancelled off it', () => {
     expect(PROGRESS_STEPS.map(progressIndex)).toEqual([0, 1, 2, 3, 4, 5]);
     expect(progressIndex('cancelled')).toBe(-1);
+  });
+});
+
+describe('progressStates (issue #6)', () => {
+  const states = (status: TicketStatus, reached: TicketStatus[]) =>
+    Object.fromEntries(progressStates(status, reached).map(({ step, state }) => [step, state]));
+
+  it('marks a skipped step as skipped, never done', () => {
+    expect(states('ready', ['received', 'diagnosing', 'repairing', 'ready'])).toEqual({
+      received: 'done',
+      diagnosing: 'done',
+      waiting_parts: 'skipped',
+      repairing: 'done',
+      ready: 'current',
+      delivered: 'todo',
+    });
+  });
+
+  it('is done for a step entered at any point, also out of order', () => {
+    const result = states('repairing', ['received', 'diagnosing', 'repairing', 'waiting_parts', 'repairing']);
+    expect(result.waiting_parts).toBe('done');
+    expect(result.repairing).toBe('current');
+  });
+
+  it('shows steps after the current one as todo even if reached before', () => {
+    expect(states('repairing', ['received', 'diagnosing', 'ready', 'repairing']).ready).toBe('todo');
+  });
+
+  it('covers the whole path for delivered tickets and nothing for cancelled ones', () => {
+    expect(Object.values(states('delivered', [...PROGRESS_STEPS]))).toEqual([
+      'done', 'done', 'done', 'done', 'done', 'current',
+    ]);
+    expect(progressStates('cancelled', ['received', 'cancelled'])).toEqual([]);
   });
 });

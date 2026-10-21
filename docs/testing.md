@@ -12,7 +12,7 @@ How BenchTrack is tested, from fast pure-logic tests to the containerized app. E
              ┌───┴───────────────────────────────┴───┐
              │ API — 264 (incl. contract parity, SPA, headers) │  in-process HTTP, in-memory SQLite
          ┌───┴───────────────────────────────────────┴───┐
-         │ Unit — 285 backend · Vitest — 136 frontend     │  pure logic, no HTTP or DB
+         │ Unit — 285 backend · Vitest — 145 frontend     │  pure logic, no HTTP or DB
          └───────────────────────────────────────────────┘
   Static checks: Redocly (contract) · ruff · oxlint · tsc · Semgrep · actionlint
 ```
@@ -25,7 +25,7 @@ From the repo root, on Windows PowerShell, Linux or macOS (needs uv, Node.js and
 uv run --no-project python scripts/test_all.py
 ```
 
-[`scripts/test_all.py`](../scripts/test_all.py) starts the Compose PostgreSQL, then runs the backend unit, API and integration tests in **one** pytest run (559), Vitest (136), the hook tests, the sync-script tests and drift check, and the MCP server tests. It prints a PASS/FAIL summary and exits non-zero on any failure. With `--skip-integration` it needs no Docker. It uses `TEST_DATABASE_URL` if set, else the Compose default `…@127.0.0.1:<DB_PORT>/benchtrack_test` (`DB_PORT` from the shell or `.env`, default 5433). The sections below run each layer on its own.
+[`scripts/test_all.py`](../scripts/test_all.py) starts the Compose PostgreSQL, then runs the backend unit, API and integration tests in **one** pytest run (559), Vitest (145), the hook tests, the sync-script tests and drift check, and the MCP server tests. It prints a PASS/FAIL summary and exits non-zero on any failure. With `--skip-integration` it needs no Docker. It uses `TEST_DATABASE_URL` if set, else the Compose default `…@127.0.0.1:<DB_PORT>/benchtrack_test` (`DB_PORT` from the shell or `.env`, default 5433). The sections below run each layer on its own.
 
 | Layer | Where | Tests | Command | Needs |
 |---|---|---:|---|---|
@@ -35,7 +35,7 @@ uv run --no-project python scripts/test_all.py
 | Backend integration | `backend/tests/integration/` | 10 | `uv run pytest -m integration` | PostgreSQL + `TEST_DATABASE_URL` |
 | Contract parity | `backend/tests/api/test_contract.py` | 4 | `uv run pytest tests/api/test_contract.py` | nothing |
 | Contract lint | `openapi.yaml` | — | `npx @redocly/cli@2.66.0 lint openapi.yaml` | Node |
-| Frontend | `frontend/src/**/*.test.ts(x)` | 136 in 11 files | `npm test` | Node |
+| Frontend | `frontend/src/**/*.test.ts(x)` | 145 in 11 files | `npm test` | Node |
 | Agent hooks (guard, ruff hook) | `agent-hooks/tests/` | 35 (plus sub-cases) | `python -m unittest discover -s agent-hooks/tests` | Python 3.12 (stdlib) |
 | MCP server | `mcp-server/tests/` | 25 | `cd mcp-server && uv run pytest -q` | nothing (mocked API) |
 | Agent pack sync (plugin and `.claude/` copies) | `plugins/tests/` | 9 | `python -m unittest discover -s plugins/tests`, then `python plugins/sync_plugin.py --check` | nothing |
@@ -96,7 +96,7 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-## Frontend (`frontend/`) — Vitest (136 in 11 files)
+## Frontend (`frontend/`) — Vitest (145 in 11 files)
 
 Vitest + Testing Library + jsdom (`src/test/setup.ts` cleans up the DOM and `localStorage` after each test).
 
@@ -111,7 +111,7 @@ Vitest + Testing Library + jsdom (`src/test/setup.ts` cleans up the DOM and `loc
 ```powershell
 cd frontend
 npm ci
-npm test               # Test Files 11 passed (11) · Tests 136 passed (136)
+npm test               # Test Files 11 passed (11) · Tests 145 passed (145)
 npm run lint           # oxlint
 npm run typecheck      # tsc -b
 npm run build          # type-check + production build
