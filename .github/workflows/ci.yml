@@ -228,12 +228,12 @@ jobs:
         run: python3 -m unittest discover -s plugins/tests -v
       - name: Plugin and .claude/ copies match their sources
         run: python3 plugins/sync_plugin.py --check
-      - name: MCP server lint and tests
+      - name: Lint agent pack and scripts, MCP server tests
         working-directory: mcp-server
         run: |
           uv sync --locked
-          uv run ruff check . ../agent-hooks ../plugins/sync_plugin.py
-          uv run ruff format --check . ../agent-hooks ../plugins/sync_plugin.py
+          uv run ruff check . ../agent-hooks ../plugins ../scripts
+          uv run ruff format --check . ../agent-hooks ../plugins ../scripts
           uv run pytest -q
 
   semgrep:

@@ -21,13 +21,15 @@ Instructions for AI coding agents (and human contributors) working in this repos
 ├── Dockerfile             # multi-stage: builds frontend, serves it from FastAPI
 ├── docker/                # container entrypoint (migrate + uvicorn) and health check
 ├── .github/workflows/     # CI (tests, scans) and CD (deploy on main)
-├── docs/                  # architecture, AI workflow log, deployment, testing
+├── docs/                  # architecture, agent team, AI workflow log, deployment, testing, self-review
 ├── security/              # scan outputs, PR audit, agent security notes, AI policy
 ├── ops/                   # runbook, health checks, incident diagnosis
 ├── agent-capabilities/    # skills + subagents (Module 5)
 ├── agent-hooks/           # hook scripts / guardrails (Module 5)
 ├── mcp-server/            # read-only MCP server over the BenchTrack API (Module 5)
-└── plugins/               # Claude Code plugin bundling the pack (Module 5)
+├── plugins/               # Claude Code plugin bundling the pack (Module 5)
+├── .claude/               # Claude Code settings + synced skills and subagent
+└── scripts/               # test_all.py (every suite, one command), capture_screenshots.py
 ```
 
 ## Golden rules
@@ -37,7 +39,8 @@ Instructions for AI coding agents (and human contributors) working in this repos
 3. **Small steps, one commit per task**, message in imperative mood (`Add status transition validation`).
 4. **No secrets in the repo.** Use `.env` (git-ignored) and `.env.example`. Never print or commit `STAFF_TOKEN`, `DATABASE_URL` or deploy hooks.
 5. **Fictional data only** in seeds, tests and screenshots.
-6. **Log AI usage**: after each significant task, append a short entry to `docs/ai-workflow.md` (prompt summary, what was delegated, what was reviewed manually, how it was verified).
+6. **Work as the agent team**: roles, hand-offs and who merges are defined in [`docs/agent-team.md`](docs/agent-team.md). System overview: [`docs/architecture.md`](docs/architecture.md).
+7. **Log AI usage**: after each significant task, append a short entry to `docs/ai-workflow.md` (prompt summary, what was delegated, what was reviewed manually, how it was verified).
 
 ## Backend (`backend/`)
 

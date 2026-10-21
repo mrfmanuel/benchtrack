@@ -216,4 +216,4 @@ Run 1 also miscounted ("12 of 12" operations while listing 14); run 3 counted 14
 
 - **Hooks and permission rules are guardrails, not a sandbox.** They match the commands an agent writes; a script that opens `.env` by itself, or an unusual spelling, can get past them. Claude Code's [sandboxing](https://code.claude.com/docs/en/sandboxing) would be the OS-level layer.
 - The guard is deliberately conservative. For example, `cp .env.example .env` is blocked; the human does it once, as in the README.
-- The MCP server's read-only guarantee comes from its code. The staff token it uses can write through the API ([permissions](permissions.md#the-mcp-servers-token)).
+- The MCP server's read-only guarantee comes from its code. The staff token it uses can write through the API ([permissions](permissions.md#2-the-mcp-servers-token)).

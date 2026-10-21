@@ -10,12 +10,22 @@ How BenchTrack is tested, from fast pure-logic tests to the containerized app. E
                  ├───────────────────────────────┤
                  │ Integration — 10              │  real PostgreSQL, Alembic, key HTTP workflows
              ┌───┴───────────────────────────────┴───┐
-             │ API — 255 (incl. contract parity, SPA, headers) │  in-process HTTP, in-memory SQLite
+             │ API — 264 (incl. contract parity, SPA, headers) │  in-process HTTP, in-memory SQLite
          ┌───┴───────────────────────────────────────┴───┐
          │ Unit — 285 backend · Vitest — 136 frontend     │  pure logic, no HTTP or DB
          └───────────────────────────────────────────────┘
   Static checks: Redocly (contract) · ruff · oxlint · tsc · Semgrep · actionlint
 ```
+
+## Run everything with one command
+
+From the repo root, on Windows PowerShell, Linux or macOS (needs uv, Node.js and Docker):
+
+```bash
+uv run --no-project python scripts/test_all.py
+```
+
+[`scripts/test_all.py`](../scripts/test_all.py) starts the Compose PostgreSQL, then runs the backend unit, API and integration tests in **one** pytest run (559), Vitest (136), the hook tests, the sync-script tests and drift check, and the MCP server tests. It prints a PASS/FAIL summary and exits non-zero on any failure. With `--skip-integration` it needs no Docker. It uses `TEST_DATABASE_URL` if set, else the Compose default `…@127.0.0.1:5433/benchtrack_test`. The sections below run each layer on its own.
 
 | Layer | Where | Tests | Command | Needs |
 |---|---|---:|---|---|
