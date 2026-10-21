@@ -5,8 +5,8 @@
 | PR | [#1 Add security headers and stop trusting X-Forwarded-For for rate limiting](https://github.com/mrfmanuel/benchtrack/pull/1) |
 | Branch / base | `security/http-hardening` → `main` (`72c9e20`) |
 | Audit date | 2026-10-21 |
-| Auditor | AI agent (Claude Code). A `/security-review` command was not available in this session, so the review was done manually with the method below. **Human review pending.** |
-| Result | 2 findings fixed in this PR (1 High, 1 Medium), 3 Low fixed, 1 Medium accepted with a **merge precondition**, 5 informational. No auth bypass, no PII exposure on public routes, no injection, no secrets. |
+| Auditor | AI agent (Claude Code). A `/security-review` command was not available in this session, so the review was done manually with the method below. Reviewed by the human, who merged the PR on 2026-10-21. |
+| Result | 2 findings fixed in this PR (1 High, 1 Medium), 3 Low fixed, 1 Medium accepted with a merge precondition (met, verified in production), 5 informational. No auth bypass, no PII exposure on public routes, no injection, no secrets. |
 
 ## Scope
 
@@ -83,7 +83,60 @@ Out of scope: the frontend code (unchanged in this PR, but it was checked for CS
 - **Mitigations in this PR:** the app logs a warning at startup when running on Render (`RENDER_GIT_COMMIT` set) without `CLIENT_IP_HEADER` (`main.py:69`). It refuses `X-Forwarded-For` as the header, and falls back to the peer on a missing or malformed header value. Deployment docs and troubleshooting row added.
 - **Reason for accepting:** this is the best signal Render offers. The alternative (counting proxy hops from the right of `X-Forwarded-For`) depends on an undocumented hop count and was rejected.
 - **Required before merge:** set `CLIENT_IP_HEADER=CF-Connecting-IP` on the Render web service.
-- **Post-deploy verification (production probe; needs your approval):** send 11 lookups with a different forged `CF-Connecting-IP` and `X-Forwarded-For` each. Expect `429` on the 11th, which proves Cloudflare overwrites the header. Then confirm the startup log shows no `CLIENT_IP_HEADER` warning.
+- **Post-deploy verification: done 2026-10-21, see below.**
+
+#### F3 verification in production (2026-10-21)
+
+**Preconditions (by the human):** `CLIENT_IP_HEADER=CF-Connecting-IP` set on the Render web service; PR #1 reviewed and merged (`987a7fc`, 06:15:39Z); CI and CD green (CD 06:16:45Z). The human explicitly authorized the probe in chat. The agent ran it from one workstation, against one public tracking code from the fictional seed data.
+
+```text
+$ curl -sS https://benchtrack.onrender.com/api/health          # 06:19:15Z
+{"status":"ok","database":"ok","version":"987a7fc4b43117698c38339306120a88b25dbfcf"}
+```
+
+**Probe 1, as authorized: forged `X-Forwarded-For` and forged `CF-Connecting-IP` on each request.** All requests were rejected by **Cloudflare** before reaching Render or the app: `Server: cloudflare`, `error code: 1000`, and none of the app's headers.
+
+```text
+06:19:25 #1  XFF=198.51.100.1  CF=203.0.113.1  -> 403
+...                                                (#2–#10 identical)
+06:19:27 #11 XFF=198.51.100.11 CF=203.0.113.11 -> 403
+$ curl -i -H "X-Forwarded-For: 198.51.100.50" -H "CF-Connecting-IP: 203.0.113.50" .../api/public/track/BT-DEM22
+HTTP/1.1 403 Forbidden
+Content-Type: text/plain; charset=UTF-8
+Server: cloudflare
+CF-RAY: a4de26c419bd7df0-SJO
+error code: 1000
+```
+
+So a client **cannot** inject `CF-Connecting-IP`: Cloudflare refuses requests that already carry it. This is the strongest available evidence for F3's trust assumption. It also means this probe could not exercise the app's limiter.
+
+**Probe 2: forged `X-Forwarded-For` only.** Same endpoint, count and forged addresses, without the header Cloudflare blocks. The change was disclosed to the human in the session.
+
+```text
+06:19:49 #1  XFF=198.51.100.1  -> 200   (app headers present)
+...                                     (#2–#10: 200)
+06:19:52 #10 XFF=198.51.100.10 -> 200
+06:19:52 #11 XFF=198.51.100.11 -> 429   retry-after: 57
+{"error":{"code":"rate_limited","message":"Too many requests. Try again in 57 seconds."}}
+```
+
+On `main` before PR #1, the same pattern returned 200 for every request (F1). The forged addresses now land in one bucket: the real client IP that Cloudflare put in `CF-Connecting-IP`.
+
+**Recovery after the window:**
+
+```text
+06:21:13 $ curl -i https://benchtrack.onrender.com/api/public/track/BT-DEM22
+HTTP/1.1 200 OK
+Cache-Control: no-store
+content-security-policy: default-src 'none'; frame-ancestors 'none'
+strict-transport-security: max-age=31536000; includeSubDomains
+x-frame-options: DENY
+{"tracking_code":"BT-DEM22","device_type":"laptop",...,"status":"received",...}
+```
+
+HSTS on the production response also confirms F2's `X-Forwarded-Proto` handling behind Render.
+
+**Result: F3 verified.** The limiter keys on the Cloudflare-supplied client IP, forged `X-Forwarded-For` is ignored, `CF-Connecting-IP` cannot be forged through Cloudflare, and normal lookups work after the window. Not checked from here: the absence of the startup warning in the Render logs, which the agent cannot read. The 429 after 10 lookups shows the header is in use; without it, the key would be Render's proxy address, which is shared but would give the same pattern from a single client. The Cloudflare 403 on forged headers and the configured variable together cover that.
 
 ### F4 — Low — IPv6 address rotation inside one /64: **fixed in this PR**
 
@@ -136,7 +189,7 @@ Limits multiply with the number of instances or workers (currently 1 on Render f
 |---|---|---|---|
 | F1 | High | Rate limit bypass via forged `X-Forwarded-For` | Fixed in this PR |
 | F2 | Medium | `http://` redirects behind TLS proxy (from the F1 fix) | Fixed in this PR |
-| F3 | Medium | Production depends on `CLIENT_IP_HEADER` / Cloudflare | Accepted. **Merge precondition:** set `CLIENT_IP_HEADER=CF-Connecting-IP` on Render; post-deploy probe needs approval |
+| F3 | Medium | Production depends on `CLIENT_IP_HEADER` / Cloudflare | Accepted. Precondition met (human set it before merge); **verified in production 2026-10-21**: forged XFF → 429 on the 11th, forged `CF-Connecting-IP` blocked by Cloudflare (403, error 1000) |
 | F4 | Low | IPv6 /64 rotation | Fixed in this PR |
 | F5 | Low | 500 responses without security headers | Fixed in this PR |
 | F6 | Low | Swagger validator third-party call | Fixed in this PR |
