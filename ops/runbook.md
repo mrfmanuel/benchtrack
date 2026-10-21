@@ -65,7 +65,7 @@ docker compose logs db
 ### Normal deploy (CI/CD)
 
 1. Merge to `main` (a human merges).
-2. **CI** runs 6 jobs. If it succeeds, **CD** calls the Render deploy hook and polls `/api/health` until `version` equals the merged commit (up to ~10 min).
+2. **CI** runs 7 jobs. If it succeeds, **CD** calls the Render deploy hook and polls `/api/health` until `version` equals the merged commit (up to ~10 min).
 3. CD summary: `✅ Deployed <sha>` means done. `⚠️ NOT DEPLOYED` means the hook secret is missing; `❌ Deploy NOT verified` means look at Render *Events*/*Logs*. See [troubleshooting](../docs/deployment.md#deploy-troubleshooting).
 
 ```powershell

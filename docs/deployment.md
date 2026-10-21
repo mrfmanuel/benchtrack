@@ -3,7 +3,7 @@
 Production runs on [Render](https://render.com): one **web service** built from the root `Dockerfile` (API + built SPA) and one **Render PostgreSQL** database. GitHub Actions deploys: `cd.yml` calls Render's deploy hook after CI passes on `main`, then waits until `/api/health` reports the deployed commit.
 
 ```
-push to main ──► CI (ci.yml, 6 jobs) ──success──► CD (cd.yml) ──POST deploy hook──► Render builds Dockerfile
+push to main ──► CI (ci.yml, 7 jobs) ──success──► CD (cd.yml) ──POST deploy hook──► Render builds Dockerfile
                                                      │                                   │
                                                      └── polls APP_URL/api/health ◄──────┘ entrypoint: alembic upgrade head → uvicorn
                                                          until version == commit SHA
