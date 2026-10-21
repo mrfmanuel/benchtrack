@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "benchtrack-dev",
+  "displayName": "BenchTrack Dev Pack",
+  "version": "0.1.0",
+  "description": "BenchTrack agent extension pack: contract-first and release-check skills, a read-only contract-reviewer subagent, guardrail hooks (secrets, destructive commands, pushes to main) with ruff feedback, and a read-only BenchTrack API MCP server.",
+  "author": {
+    "name": "Manuel Rivera"
+  },
+  "repository": "https://github.com/mrfmanuel/benchtrack",
+  "keywords": [
+    "benchtrack",
+    "fastapi",
+    "contract-first",
+    "guardrails",
+    "mcp"
+  ]
+}

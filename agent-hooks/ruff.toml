@@ -1,0 +1,9 @@
+# Lint settings for the hook scripts themselves (stdlib-only Python, run by CI).
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "S"]
+
+[lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S603", "S607", "E501"]  # literal commands under test

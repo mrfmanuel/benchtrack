@@ -101,6 +101,8 @@ Tests: see [`docs/testing.md`](docs/testing.md) for every layer, its command and
 - [`AGENTS.md`](AGENTS.md) — instructions for coding agents and contributors
 - [`docs/database.md`](docs/database.md) — database environments, migrations, seeding, ER diagram
 - [`docs/testing.md`](docs/testing.md) — test pyramid, commands and counts, CI jobs
+- [`docs/agent-extension-pack.md`](docs/agent-extension-pack.md) — Claude Code skills, subagent, guard hooks, read-only MCP server and plugin
+- [`docs/permissions.md`](docs/permissions.md) — what AI agents may do in this repo (allow/ask/deny, hooks, human-only merge)
 - [`docs/deployment.md`](docs/deployment.md) — Render setup, free-tier limits, deploy troubleshooting
 - [`ops/runbook.md`](ops/runbook.md) — start/stop, health and version, logs, deploy and rollback, seeding, token rotation
 - [`ops/incidents/`](ops/incidents/) — incident reports

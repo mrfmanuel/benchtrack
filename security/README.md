@@ -8,6 +8,8 @@ Index of BenchTrack's security artifacts. Operational procedures live in [`ops/`
 | [`scan-findings.md`](scan-findings.md) | Triage of every deterministic scan: Semgrep, pip-audit, npm audit, gitleaks, Trivy (S1–S6), with commands and limits |
 | [`scans/`](scans/) | Raw scanner outputs (JSON; Trivy also as a table), unmodified |
 | [`agent-security-notes.md`](agent-security-notes.md) | Which AI agents were used, what they could access, the approval model with real examples, risks, mitigations and gaps |
+| [`../docs/permissions.md`](../docs/permissions.md) | Claude Code allow/ask/deny rules, guard hook, MCP token scope, human-only merge via branch protection |
+| [`../docs/agent-extension-pack.md`](../docs/agent-extension-pack.md) | Skills, contract-reviewer subagent, hooks, MCP server and plugin, with live evidence |
 | [`ai-tool-data-policy.md`](ai-tool-data-policy.md) | Which AI tools are allowed, what data may never be shared with them, human review before merge and production actions, verification of AI-generated code, dependency rules |
 
 ## Related
@@ -25,6 +27,7 @@ Index of BenchTrack's security artifacts. Operational procedures live in [`ops/`
 - **Logs:** JSON, tracking codes masked.
 - **Container:** non-root user, no setuid/setgid binaries, `no-new-privileges` in Compose, health check.
 - **CI/CD:** SHA-pinned actions, `contents: read`, Semgrep on every PR, deploy only after green CI, deployed commit verified.
+- **AI agents:** project permission rules and a PreToolUse guard (no `.env`, no destructive commands, no pushes to `main`), human-only merge, read-only MCP server.
 
 ## Reporting a problem
 
